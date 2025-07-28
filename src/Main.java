@@ -14,19 +14,16 @@ public class Main {
     private static int currentYear = 0;
     private static final int MAX_YEARS = 100;
     private static final List<List<String>> yearEvents = new ArrayList<>();
+    private static final double MARRIAGE_CHANCE = 0.2;
 
     public static void main(String[] args) {
-        // Get player name
         System.out.print("Enter starting player name (male): ");
         String playerName = scanner.nextLine();
-
-        // Create initial player
         currentPlayer = new Person(true, playerName, 20, Person.Sex.MALE, true, "Farmer");
         villagers.add(currentPlayer);
         yearEvents.add(new ArrayList<>());
 
-        // Simulate for 100 years
-        while (currentYear < MAX_YEARS) {
+        while (currentYear < MAX_YEARS && currentPlayer != null) {
             simulateYear();
             printYearSummary();
             currentYear++;
@@ -38,118 +35,100 @@ public class Main {
         List<Person> toRemove = new ArrayList<>();
         List<String> events = yearEvents.get(currentYear);
 
+        // Handle aging and deaths
         for (Person person : new ArrayList<>(villagers)) {
-            // Age everyone
             person.setAge(person.getAge() + 1);
-
-            // Check for death
             if (shouldDie(person)) {
                 person.setAlive(false);
                 toRemove.add(person);
                 events.add(person.getName() + (person == currentPlayer ? " [Player]" : "") + " died (age " + person.getAge() + ")");
-                if (person == currentPlayer && !person.getChildren().isEmpty()) {
-                    currentPlayer = person.getChildren().get(0);
-                    events.add(currentPlayer.getName() + " became new player");
-                }
-                continue;
-            }
-
-            // Handle marriage for unmarried males aged 18-29, including eligible widowers
-            if (person.getSex() == Person.Sex.MALE && person.getMarriedTo() == null && person.isAlive()
-                    && person.getAge() >= 18 && person.getAge() < 29 && (person.getChildren().isEmpty() || person.getMarriedTo() == null)) {
-                Person spouse = marryPerson(person);
-                if (spouse != null) {
-                    events.add(person.getName() + " married " + spouse.getName());
-                }
-            }
-
-            // Handle child birth for married couples
-            if (person.getMarriedTo() != null && person.isAlive() && person.getMarriedTo().isAlive()) {
-                if (person.getSex() == Person.Sex.MALE) {
-                    int maxChildren = (person == currentPlayer || person.getChildren().contains(currentPlayer)) ? 1 : 2;
-                    if (person.getChildren().size() < maxChildren) {
-                        Person child = createChild(person);
-                        events.add(child.getName() + " born to " + person.getName() + " & " + person.getMarriedTo().getName());
+                if (person == currentPlayer) {
+                    currentPlayer = !person.getChildren().isEmpty() ? person.getChildren().get(0) : null;
+                    if (currentPlayer != null) {
+                        events.add(currentPlayer.getName() + " became new player");
+                    } else {
+                        events.add("No heir found. Simulation ends.");
                     }
                 }
             }
         }
 
-        // Remove deceased villagers
+        // Handle marriages
+        for (Person person : new ArrayList<>(villagers)) {
+            if (person.isAlive() && person.getMarriedTo() == null && person.getAge() >= 18 && random.nextDouble() < MARRIAGE_CHANCE) {
+                Person spouse = marryPerson(person);
+                if (spouse != null) {
+                    events.add(person.getName() + " married " + spouse.getName() +
+                            (spouse.isBornOutsideVillage() ? " (from outside village)" : ""));
+                }
+            }
+        }
+
+        // Handle childbirth
+        for (Person person : new ArrayList<>(villagers)) {
+            if (person.getMarriedTo() != null && person.isAlive() && person.getMarriedTo().isAlive() && person.getSex() == Person.Sex.MALE) {
+                int maxChildren = (person == currentPlayer || person.getChildren().contains(currentPlayer)) ? 1 : 2;
+                if (person.getChildren().size() < maxChildren && person.getMarriedTo().getChildren().size() < maxChildren) {
+                    Person child = createChild(person);
+                    events.add(child.getName() + " born to " + person.getName() + " & " + person.getMarriedTo().getName());
+                }
+            }
+        }
+
         villagers.removeAll(toRemove);
     }
 
     private static boolean shouldDie(Person person) {
-        if (!person.isAlive()) {
-            return false;
-        }
+        if (!person.isAlive()) return false;
         int age = person.getAge();
-        if (age >= 60 && age <= 70) {
-            int deathChance = (age - 60) * 10;
-            return random.nextInt(100) < deathChance;
-        } else if (age > 70) {
-            return true;
-        }
-        return false;
+        if (age >= 60 && age <= 70) return random.nextInt(100) < (age - 60) * 10;
+        return age > 70;
     }
 
-    private static Person marryPerson(Person male) {
-        Person spouse = findEligibleSpouse(male);
-        if (spouse != null) {
-            male.marry(spouse);
+    private static Person marryPerson(Person person) {
+        Person spouse = findEligibleSpouse(person);
+        if (spouse == null) {
+            Person.Sex spouseSex = person.getSex() == Person.Sex.MALE ? Person.Sex.FEMALE : Person.Sex.MALE;
+            int spouseAge = 18 + random.nextInt(12); // 18-29
+            String spouseName = namer.getRandomName(spouseSex);
+            String occupation = spouseSex == Person.Sex.MALE ? "Farmer" : "Homemaker";
+            spouse = new Person(true, spouseName, spouseAge, spouseSex, true, occupation);
+            villagers.add(spouse);
+        }
+        try {
+            person.marry(spouse);
             return spouse;
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return null;
         }
-        // Create a new female spouse
-        int minSpouseAge = 18;
-        int maxSpouseAge = 29;
-        int spouseAge = minSpouseAge + random.nextInt(maxSpouseAge - minSpouseAge + 1);
-        String spouseName = namer.getRandomName(Person.Sex.FEMALE);
-        spouse = new Person(false, spouseName, spouseAge, Person.Sex.FEMALE, true, "Homemaker");
-        villagers.add(spouse);
-        male.marry(spouse);
-        return spouse;
     }
 
-    private static Person findEligibleSpouse(Person male) {
+    private static Person findEligibleSpouse(Person person) {
         List<Person> candidates = new ArrayList<>();
         for (Person villager : villagers) {
-            if (isEligibleForMarriage(male, villager)) {
+            if (isEligibleForMarriage(person, villager)) {
                 candidates.add(villager);
             }
         }
-        if (candidates.isEmpty()) {
-            return null;
-        }
-        return candidates.get(random.nextInt(candidates.size()));
+        return candidates.isEmpty() ? null : candidates.get(random.nextInt(candidates.size()));
     }
 
-    private static boolean isEligibleForMarriage(Person male, Person candidate) {
-        if (candidate.getSex() != Person.Sex.FEMALE || !candidate.isAlive() || candidate.getMarriedTo() != null) {
+    private static boolean isEligibleForMarriage(Person person, Person candidate) {
+        if (candidate.getSex() == person.getSex() || !candidate.isAlive() || candidate.getMarriedTo() != null ||
+                candidate.getAge() < 18 || candidate.getAge() > 29 || !candidate.getChildren().isEmpty()) {
             return false;
         }
-        int minSpouseAge = 18;
-        int maxSpouseAge = 29;
-        if (candidate.getAge() < minSpouseAge || candidate.getAge() > maxSpouseAge) {
-            return false;
-        }
-        if (!candidate.getChildren().isEmpty()) {
-            return false; // No remarriage if candidate has children
-        }
-        return !isCloseRelative(male, candidate);
+        return !isCloseRelative(person, candidate);
     }
 
     private static boolean isCloseRelative(Person p1, Person p2) {
         Set<Person> p1Ancestors = getAncestors(p1);
         Set<Person> p2Ancestors = getAncestors(p2);
-        if (p1Ancestors.contains(p2) || p2Ancestors.contains(p1)) {
-            return true;
-        }
+        if (p1Ancestors.contains(p2) || p2Ancestors.contains(p1)) return true;
         Set<Person> p1Parents = getParents(p1);
         Set<Person> p2Parents = getParents(p2);
         p1Parents.retainAll(p2Parents);
-        if (!p1Parents.isEmpty()) {
-            return true;
-        }
+        if (!p1Parents.isEmpty()) return true;
         Set<Person> p1Grandparents = getGrandparents(p1);
         Set<Person> p2Grandparents = getGrandparents(p2);
         p1Grandparents.retainAll(p2Grandparents);
@@ -159,17 +138,14 @@ public class Main {
     private static Set<Person> getParents(Person person) {
         Set<Person> parents = new HashSet<>();
         for (Person villager : villagers) {
-            if (villager.getChildren().contains(person)) {
-                parents.add(villager);
-            }
+            if (villager.getChildren().contains(person)) parents.add(villager);
         }
         return parents;
     }
 
     private static Set<Person> getGrandparents(Person person) {
         Set<Person> grandparents = new HashSet<>();
-        Set<Person> parents = getParents(person);
-        for (Person parent : parents) {
+        for (Person parent : getParents(person)) {
             grandparents.addAll(getParents(parent));
         }
         return grandparents;
@@ -201,9 +177,8 @@ public class Main {
         long livingCount = villagers.stream().filter(Person::isAlive).count();
         System.out.printf("Population: %d%n", livingCount);
 
-        // Events
-        List<String> events = yearEvents.get(currentYear);
         System.out.println("Events:");
+        List<String> events = yearEvents.get(currentYear);
         if (events.isEmpty()) {
             System.out.println("  None");
         } else {
@@ -212,71 +187,49 @@ public class Main {
             }
         }
 
-        // Family units
         System.out.println("Families:");
         List<Person> processed = new ArrayList<>();
         for (Person person : villagers) {
-            if (!person.isAlive() || processed.contains(person)) {
-                continue;
-            }
+            if (!person.isAlive() || processed.contains(person)) continue;
+            StringBuilder family = new StringBuilder();
             if (person.getMarriedTo() != null && person.getMarriedTo().isAlive()) {
-                // Married couple
-                StringBuilder family = new StringBuilder();
                 Person spouse = person.getMarriedTo();
-                family.append(String.format("%s (%d, %s)", person.getName(), person.getAge(), person.getSex()));
-                family.append(" & ").append(String.format("%s (%d, %s)", spouse.getName(), spouse.getAge(), spouse.getSex()));
-                if (person == currentPlayer) {
-                    family.append(" [Player]");
-                } else if (spouse == currentPlayer) {
-                    family.append(" [Spouse is Player]");
-                }
+                family.append(String.format("%s (%d, %s)", person.getName(), person.getAge(), person.getSex()))
+                      .append(" & ").append(String.format("%s (%d, %s)", spouse.getName(), spouse.getAge(), spouse.getSex()));
+                if (person == currentPlayer) family.append(" [Player]");
+                else if (spouse == currentPlayer) family.append(" [Spouse is Player]");
                 List<Person> unmarriedChildren = person.getChildren().stream()
                         .filter(child -> child.isAlive() && child.getMarriedTo() == null)
-                        .limit(2)
-                        .toList();
+                        .limit(2).toList();
                 if (!unmarriedChildren.isEmpty()) {
                     family.append(", Children: ");
                     for (int i = 0; i < unmarriedChildren.size(); i++) {
                         Person child = unmarriedChildren.get(i);
                         family.append(String.format("%s (%d, %s)", child.getName(), child.getAge(), child.getSex()));
-                        if (child == currentPlayer) {
-                            family.append(" [Player]");
-                        }
-                        if (i < unmarriedChildren.size() - 1) {
-                            family.append(", ");
-                        }
+                        if (child == currentPlayer) family.append(" [Player]");
+                        if (i < unmarriedChildren.size() - 1) family.append(", ");
                     }
                 }
-                System.out.println("  " + family);
                 processed.add(person);
                 processed.add(spouse);
-            } else if (person.getMarriedTo() == null || !person.getMarriedTo().isAlive()) {
-                // Single or widowed adult
-                StringBuilder family = new StringBuilder();
+            } else {
                 family.append(String.format("%s (%d, %s)", person.getName(), person.getAge(), person.getSex()));
-                if (person == currentPlayer) {
-                    family.append(" [Player]");
-                }
+                if (person == currentPlayer) family.append(" [Player]");
                 List<Person> unmarriedChildren = person.getChildren().stream()
                         .filter(child -> child.isAlive() && child.getMarriedTo() == null)
-                        .limit(2)
-                        .toList();
+                        .limit(2).toList();
                 if (!unmarriedChildren.isEmpty()) {
                     family.append(", Children: ");
                     for (int i = 0; i < unmarriedChildren.size(); i++) {
                         Person child = unmarriedChildren.get(i);
                         family.append(String.format("%s (%d, %s)", child.getName(), child.getAge(), child.getSex()));
-                        if (child == currentPlayer) {
-                            family.append(" [Player]");
-                        }
-                        if (i < unmarriedChildren.size() - 1) {
-                            family.append(",");
-                        }
+                        if (child == currentPlayer) family.append(" [Player]");
+                        if (i < unmarriedChildren.size() - 1) family.append(", ");
                     }
                 }
-                System.out.println("  " + family);
                 processed.add(person);
             }
+            System.out.println("  " + family);
         }
         System.out.println("------------");
     }

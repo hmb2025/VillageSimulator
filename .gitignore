@@ -1,0 +1,54 @@
+# Eclipse-specific files
+.classpath
+.project
+.settings/
+*.launch
+
+# Java build output
+bin/
+target/
+*.class
+
+# Maven-specific (if using Maven)
+pom.xml.versionsBackup
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/
+mvnw
+mvnw.cmd
+
+# Gradle-specific (if using Gradle)
+.gradle/
+build/
+gradle/
+gradlew
+gradlew.bat
+
+# IntelliJ IDEA files (if someone uses IDEA alongside Eclipse)
+.idea/
+*.iml
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Dependency directories
+lib/
+libs/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Local configuration files
+*.local
+*.cache
+
+# Optional: Exclude specific Eclipse metadata if needed
+.metadata/
