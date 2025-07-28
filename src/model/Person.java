@@ -158,7 +158,7 @@ public class Person {
     }
 
     // Getters
-    public String getName() { return name; }
+    public String getName() { return name + (bornOutsideVillage ? " (outsider)" : " (native)"); }
     public int getAge() { return age; }
     public Sex getSex() { return sex; }
     public boolean isAlive() { return isAlive; }

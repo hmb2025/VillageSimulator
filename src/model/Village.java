@@ -161,17 +161,17 @@ public class Village {
                         family.addChild(child);
                     }
                 }
-            } else {
-                // Single parent family
-                family.addParent(person);
-                processed.add(person);
-                
-                // Add unmarried children
-                for (Person child : person.getChildren()) {
-                    if (child.isAlive() && child.getMarriedTo() == null) {
-                        family.addChild(child);
-                    }
-                }
+//            } else {
+//                // Single parent family
+//                family.addParent(person);
+//                processed.add(person);
+//                
+//                // Add unmarried children
+//                for (Person child : person.getChildren()) {
+//                    if (child.isAlive() && child.getMarriedTo() == null) {
+//                        family.addChild(child);
+//                    }
+//                }
             }
             
             if (!family.isEmpty()) {

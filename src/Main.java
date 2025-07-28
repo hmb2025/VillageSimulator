@@ -8,7 +8,7 @@ import java.util.Scanner;
  * This class coordinates the initialization and execution of the simulation.
  */
 public class Main {
-    private static final int STARTING_PLAYER_AGE = 20;
+    private static final int STARTING_PLAYER_AGE = 18;
     private static final String STARTING_OCCUPATION = "Farmer";
     
     public static void main(String[] args) {

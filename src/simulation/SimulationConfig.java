@@ -9,8 +9,8 @@ public class SimulationConfig {
     private final boolean verboseOutput;
     
     // Default values
-    public static final int DEFAULT_MAX_YEARS = 100;
-    public static final double DEFAULT_MARRIAGE_CHANCE = 0.2;
+    public static final int DEFAULT_MAX_YEARS = 150;
+    public static final double DEFAULT_MARRIAGE_CHANCE = 0.20;
     
     private SimulationConfig(Builder builder) {
         this.maxYears = builder.maxYears;
