@@ -102,12 +102,27 @@ public class Village {
     }
 
     /**
-     * Finds all parents of a person.
+     * Finds all parents of a person using the new parent tracking.
      */
     private Set<Person> findParents(Person person) {
-        return villagers.stream()
+        Set<Person> parents = new HashSet<>();
+        
+        // Use the new parent tracking first
+        if (person.getMother() != null) {
+            parents.add(person.getMother());
+        }
+        if (person.getFather() != null) {
+            parents.add(person.getFather());
+        }
+        
+        // Fallback to old method if no parent tracking exists
+        if (parents.isEmpty()) {
+            parents.addAll(villagers.stream()
                 .filter(v -> v.getChildren().contains(person))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toSet()));
+        }
+        
+        return parents;
     }
 
     /**
@@ -161,17 +176,17 @@ public class Village {
                         family.addChild(child);
                     }
                 }
-//            } else {
-//                // Single parent family
-//                family.addParent(person);
-//                processed.add(person);
-//                
-//                // Add unmarried children
-//                for (Person child : person.getChildren()) {
-//                    if (child.isAlive() && child.getMarriedTo() == null) {
-//                        family.addChild(child);
-//                    }
-//                }
+            } else if (person.hasChildren() && person.getMarriedTo() == null) {
+                // Single parent family (widowed with children)
+                family.addParent(person);
+                processed.add(person);
+                
+                // Add unmarried children
+                for (Person child : person.getChildren()) {
+                    if (child.isAlive() && child.getMarriedTo() == null) {
+                        family.addChild(child);
+                    }
+                }
             }
             
             if (!family.isEmpty()) {

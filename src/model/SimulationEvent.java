@@ -1,91 +1,66 @@
 package model;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Represents events that occur during the simulation.
+ * Represents an event that occurs during the simulation.
  */
 public class SimulationEvent {
-    public enum EventType {
-        BIRTH("Birth"),
-        DEATH("Death"),
-        MARRIAGE("Marriage"),
-        PLAYER_CHANGE("Player Change"),
-        SIMULATION_END("Simulation End");
-
-        private final String displayName;
-
-        EventType(String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String getDisplayName() {
-            return displayName;
-        }
-    }
-
-    private final EventType type;
     private final String description;
-    private final List<Person> involvedPeople;
     private final int year;
-
-    public SimulationEvent(EventType type, String description, int year) {
-        this.type = type;
+    private final EventType type;
+    
+    public enum EventType {
+        BIRTH, DEATH, MARRIAGE, PLAYER_CHANGE, SIMULATION_END, OUTSIDER_ARRIVAL
+    }
+    
+    private SimulationEvent(String description, int year, EventType type) {
         this.description = description;
         this.year = year;
-        this.involvedPeople = new ArrayList<>();
+        this.type = type;
     }
-
-    public SimulationEvent(EventType type, String description, int year, Person... people) {
-        this(type, description, year);
-        for (Person person : people) {
-            if (person != null) {
-                this.involvedPeople.add(person);
-            }
-        }
-    }
-
-    // Factory methods for common events
+    
+    // Factory methods for creating different event types
+    
     public static SimulationEvent birth(Person child, Person father, Person mother, int year) {
-        String desc = String.format("%s born to %s & %s", 
+        String desc = String.format("Birth: %s born to %s and %s", 
             child.getName(), father.getName(), mother.getName());
-        return new SimulationEvent(EventType.BIRTH, desc, year, child, father, mother);
+        return new SimulationEvent(desc, year, EventType.BIRTH);
     }
-
-    public static SimulationEvent death(Person person, int year, boolean isPlayer) {
-        String desc = String.format("%s%s died (age %d)", 
-            person.getName(), 
-            isPlayer ? " [Player]" : "", 
-            person.getAge());
-        return new SimulationEvent(EventType.DEATH, desc, year, person);
+    
+    public static SimulationEvent death(Person person, int year, boolean wasPlayer) {
+        String desc = String.format("Death: %s died at age %d%s", 
+            person.getName(), person.getAge(), wasPlayer ? " (was player)" : "");
+        return new SimulationEvent(desc, year, EventType.DEATH);
     }
-
+    
     public static SimulationEvent marriage(Person person1, Person person2, int year) {
-        String desc = String.format("%s married %s%s", 
-            person1.getName(), 
-            person2.getName(),
-            person2.isBornOutsideVillage() ? " (from outside village)" : "");
-        return new SimulationEvent(EventType.MARRIAGE, desc, year, person1, person2);
+        String p1Info = String.format("%s (%s)", person1.getName(), person1.getOriginStatus());
+        String p2Info = String.format("%s (%s)", person2.getName(), person2.getOriginStatus());
+        String desc = String.format("Marriage: %s married %s", p1Info, p2Info);
+        return new SimulationEvent(desc, year, EventType.MARRIAGE);
     }
-
+    
+    public static SimulationEvent outsiderArrival(Person person, int year, String reason) {
+        String desc = String.format("Outsider Arrival: %s arrived (needed because: %s)", 
+            person.getName(), reason);
+        return new SimulationEvent(desc, year, EventType.OUTSIDER_ARRIVAL);
+    }
+    
     public static SimulationEvent playerChange(Person newPlayer, int year) {
-        String desc = String.format("%s became new player", newPlayer.getName());
-        return new SimulationEvent(EventType.PLAYER_CHANGE, desc, year, newPlayer);
+        String desc = String.format("Player Change: Control passed to %s", newPlayer.getName());
+        return new SimulationEvent(desc, year, EventType.PLAYER_CHANGE);
     }
-
+    
     public static SimulationEvent simulationEnd(String reason, int year) {
-        return new SimulationEvent(EventType.SIMULATION_END, reason, year);
+        return new SimulationEvent("Simulation End: " + reason, year, EventType.SIMULATION_END);
     }
-
+    
     // Getters
-    public EventType getType() { return type; }
     public String getDescription() { return description; }
-    public List<Person> getInvolvedPeople() { return new ArrayList<>(involvedPeople); }
     public int getYear() { return year; }
-
+    public EventType getType() { return type; }
+    
     @Override
     public String toString() {
-        return description;
+        return String.format("Year %d: %s", year, description);
     }
 }

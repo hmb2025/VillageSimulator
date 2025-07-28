@@ -28,6 +28,8 @@ public class Person {
     // Relationships
     private Person marriedTo;
     private final List<Person> children;
+    private Person mother;
+    private Person father;
     
     // Constants
     public static final int MINIMUM_MARRIAGE_AGE = 18;
@@ -118,6 +120,14 @@ public class Person {
     }
 
     /**
+     * Sets the parents of this person.
+     */
+    public void setParents(Person mother, Person father) {
+        this.mother = mother;
+        this.father = father;
+    }
+
+    /**
      * Ages the person by one year.
      */
     public void ageOneYear() {
@@ -158,7 +168,7 @@ public class Person {
     }
 
     // Getters
-    public String getName() { return name + (bornOutsideVillage ? " (outsider)" : " (native)"); }
+    public String getName() { return name; }
     public int getAge() { return age; }
     public Sex getSex() { return sex; }
     public boolean isAlive() { return isAlive; }
@@ -167,6 +177,22 @@ public class Person {
     public Person getMarriedTo() { return marriedTo; }
     public List<Person> getChildren() { return new ArrayList<>(children); }
     public boolean hasChildren() { return !children.isEmpty(); }
+    public Person getMother() { return mother; }
+    public Person getFather() { return father; }
+    
+    /**
+     * Gets a display name with origin status.
+     */
+    public String getDisplayName() {
+        return name;
+    }
+    
+    /**
+     * Gets origin status as a string.
+     */
+    public String getOriginStatus() {
+        return bornOutsideVillage ? "Outsider" : "Native";
+    }
     
     // Setters (only for mutable properties)
     public void setName(String name) {
@@ -180,8 +206,8 @@ public class Person {
 
     @Override
     public String toString() {
-        return String.format("Person{name='%s', age=%d, sex=%s, alive=%s}", 
-            name, age, sex, isAlive);
+        return String.format("Person{name='%s', age=%d, sex=%s, alive=%s, origin=%s}", 
+            name, age, sex, isAlive, getOriginStatus());
     }
 
     @Override

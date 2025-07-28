@@ -2,6 +2,7 @@ import model.*;
 import simulation.*;
 import ui.ConsoleUI;
 import java.util.Scanner;
+import java.io.IOException;
 
 /**
  * Main entry point for the Village Simulator application.
@@ -17,9 +18,11 @@ public class Main {
         SimulationConfig config = SimulationConfig.createDefault();
         Village village = new Village("Haven");
         SimulationEngine engine = new SimulationEngine(village, config);
-        ConsoleUI ui = new ConsoleUI(engine, scanner);
+        ConsoleUI ui = null;
         
         try {
+            ui = new ConsoleUI(engine, scanner);
+            
             // Get player name and create initial player
             String playerName = ui.getPlayerName();
             Person player = createInitialPlayer(playerName);
@@ -28,8 +31,13 @@ public class Main {
             // Run simulation
             runSimulation(engine, ui, config);
             
+        } catch (IOException e) {
+            System.err.println("Error creating output file: " + e.getMessage());
         } finally {
             scanner.close();
+            if (ui != null) {
+                ui.close();
+            }
         }
     }
     

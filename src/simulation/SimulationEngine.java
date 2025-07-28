@@ -128,7 +128,7 @@ public class SimulationEngine {
         for (Person person : eligibleVillagers) {
             if (!person.isEligibleForMarriage()) continue; // Could have married already this year
             
-            Person spouse = findOrCreateSpouse(person);
+            Person spouse = findOrCreateSpouse(person, events);
             if (spouse != null) {
                 try {
                     person.marry(spouse);
@@ -142,8 +142,9 @@ public class SimulationEngine {
     
     /**
      * Finds an eligible spouse from the village or creates a new one from outside.
+     * Now tracks why outsiders are created.
      */
-    private Person findOrCreateSpouse(Person person) {
+    private Person findOrCreateSpouse(Person person, List<SimulationEvent> events) {
         List<Person> candidates = village.findEligibleSpouses(person);
         
         if (!candidates.isEmpty()) {
@@ -159,8 +160,37 @@ public class SimulationEngine {
             Person spouse = new Person(spouseName, spouseAge, spouseSex, true, occupation);
             village.addVillager(spouse);
             
+            // Log why an outsider was needed
+            String reason = analyzeWhyOutsiderNeeded(person);
+            events.add(SimulationEvent.outsiderArrival(spouse, currentYear, reason));
+            
             return spouse;
         }
+    }
+    
+    /**
+     * Analyzes why an outsider spouse was needed.
+     */
+    private String analyzeWhyOutsiderNeeded(Person person) {
+        List<Person> allEligible = village.getLivingVillagers().stream()
+            .filter(p -> p.getSex() == person.getSex().getOpposite())
+            .filter(p -> p.getAge() >= Person.MINIMUM_MARRIAGE_AGE && p.getAge() <= Person.MAXIMUM_MARRIAGE_AGE)
+            .toList();
+        
+        if (allEligible.isEmpty()) {
+            return "No eligible " + person.getSex().getOpposite().toString().toLowerCase() + "s in village";
+        }
+        
+        int married = (int) allEligible.stream().filter(p -> p.getMarriedTo() != null).count();
+        int relatives = (int) allEligible.stream().filter(p -> village.areCloseRelatives(person, p)).count();
+        int hasChildren = (int) allEligible.stream().filter(Person::hasChildren).count();
+        
+        List<String> reasons = new ArrayList<>();
+        if (married > 0) reasons.add(married + " already married");
+        if (relatives > 0) reasons.add(relatives + " are close relatives");
+        if (hasChildren > 0) reasons.add(hasChildren + " already have children");
+        
+        return String.join(", ", reasons);
     }
     
     /**
@@ -198,6 +228,7 @@ public class SimulationEngine {
         String childName = nameGenerator.generateName(childSex);
         
         Person child = new Person(childName, 0, childSex, false, "None");
+        child.setParents(mother, father);
         father.addChild(child);
         village.addVillager(child);
         
