@@ -36,16 +36,74 @@ public class SimulationEngine {
     public void setInitialPlayer(Person player) {
         this.currentPlayer = Objects.requireNonNull(player);
         village.addVillager(player);
-        yearlyEvents.add(new ArrayList<>());
+        yearlyEvents.add(new ArrayList<>()); // Year 0 events
+    }
+    
+    /**
+     * Initializes additional starting couples as outsiders.
+     * All these couples are eligible to marry each other.
+     */
+    public void initializeAdditionalCouples(int numberOfCouples) {
+        if (numberOfCouples <= 0) return;
+        
+        List<SimulationEvent> events = new ArrayList<>();
+        List<Person> males = new ArrayList<>();
+        List<Person> females = new ArrayList<>();
+        
+        // Create the specified number of males and females
+        for (int i = 0; i < numberOfCouples; i++) {
+            // Create male
+            String maleName = nameGenerator.generateName(Person.Sex.MALE);
+            String maleOccupation = nameGenerator.generateOccupation(Person.Sex.MALE);
+            int maleAge = 18 + random.nextInt(12); // Age 18-29
+            Person male = new Person(maleName, maleAge, Person.Sex.MALE, true, maleOccupation);
+            males.add(male);
+            village.addVillager(male);
+            
+            // Create female
+            String femaleName = nameGenerator.generateName(Person.Sex.FEMALE);
+            String femaleOccupation = nameGenerator.generateOccupation(Person.Sex.FEMALE);
+            int femaleAge = 18 + random.nextInt(12); // Age 18-29
+            Person female = new Person(femaleName, femaleAge, Person.Sex.FEMALE, true, femaleOccupation);
+            females.add(female);
+            village.addVillager(female);
+            
+            events.add(SimulationEvent.outsiderArrival(male, 0, "Initial settler"));
+            events.add(SimulationEvent.outsiderArrival(female, 0, "Initial settler"));
+        }
+        
+        // Randomly pair them up for marriage
+        Collections.shuffle(males, random);
+        Collections.shuffle(females, random);
+        
+        for (int i = 0; i < numberOfCouples; i++) {
+            Person male = males.get(i);
+            Person female = females.get(i);
+            try {
+                male.marry(female);
+                events.add(SimulationEvent.marriage(male, female, 0));
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                // Marriage failed, continue
+            }
+        }
+        
+        // Add events to year 0
+        if (!yearlyEvents.isEmpty()) {
+            yearlyEvents.get(0).addAll(events);
+        }
     }
     
     /**
      * Simulates one year in the village.
+     * Fixed to process events in correct order for accurate reporting.
      */
     public SimulationResult simulateYear() {
         if (currentYear >= config.getMaxYears() || currentPlayer == null || !currentPlayer.isAlive()) {
             return SimulationResult.ended("Simulation ended");
         }
+        
+        // Increment year first (so events are recorded in the correct year)
+        currentYear++;
         
         List<SimulationEvent> events = new ArrayList<>();
         
@@ -61,9 +119,8 @@ public class SimulationEngine {
         // Clean up deceased villagers
         village.removeDeceased();
         
-        // Store events and increment year
+        // Store events for this year
         yearlyEvents.add(events);
-        currentYear++;
         
         return SimulationResult.continued(events);
     }
@@ -195,6 +252,7 @@ public class SimulationEngine {
     
     /**
      * Processes potential births for married couples.
+     * Implements the 2-child maximum for all NPCs (including initial couples).
      */
     private void processBirths(List<SimulationEvent> events) {
         List<Person> marriedMales = village.getLivingVillagers().stream()

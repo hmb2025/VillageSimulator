@@ -28,6 +28,10 @@ public class Main {
             Person player = createInitialPlayer(playerName);
             engine.setInitialPlayer(player);
             
+            // Get number of additional couples and initialize them
+            int additionalCouples = ui.getNumberOfAdditionalCouples();
+            engine.initializeAdditionalCouples(additionalCouples);
+            
             // Run simulation
             runSimulation(engine, ui, config);
             

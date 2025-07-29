@@ -50,21 +50,47 @@ public class ConsoleUI {
     }
     
     /**
+     * Gets the number of additional couples to start with.
+     */
+    public int getNumberOfAdditionalCouples() {
+        int couples = 0;
+        boolean validInput = false;
+        
+        while (!validInput) {
+            console.print("Enter number of additional starting couples (0-10): ");
+            try {
+                couples = Integer.parseInt(scanner.nextLine());
+                if (couples >= 0 && couples <= 10) {
+                    validInput = true;
+                } else {
+                    console.println("Please enter a number between 0 and 10.");
+                }
+            } catch (NumberFormatException e) {
+                console.println("Please enter a valid number.");
+            }
+        }
+        
+        writeLine("Additional starting couples: " + couples);
+        return couples;
+    }
+    
+    /**
      * Displays the yearly summary to the file and console summary.
+     * Fixed to display the current year's events, not the previous year's.
      */
     public void displayYearSummary() {
-        int year = engine.getCurrentYear() - 1; // Display previous year since we just incremented
+        int year = engine.getCurrentYear(); // Display current year
         Village village = engine.getVillage();
         List<SimulationEvent> events = engine.getEventsForYear(year);
         
         writeLine("");
         writeLine(String.format(YEAR_SEPARATOR, year));
         
-        // Display population statistics
-        displayPopulationStatistics(village);
-        
-        // Display events
+        // Display events first (as they happened during this year)
         displayEvents(events);
+        
+        // Display population statistics (after events)
+        displayPopulationStatistics(village);
         
         // Display all villagers with detailed info
         displayAllVillagers(village);
@@ -85,6 +111,7 @@ public class ConsoleUI {
      * Displays detailed population statistics.
      */
     private void displayPopulationStatistics(Village village) {
+        writeLine("");
         writeLine("Population Statistics:");
         
         List<Person> living = village.getLivingVillagers();
@@ -112,7 +139,8 @@ public class ConsoleUI {
         
         // Marriage statistics
         long married = living.stream().filter(p -> p.getMarriedTo() != null).count();
-        writeLine(String.format("  Married: %d (%.1f%%)", married, (married * 100.0) / living.size()));
+        writeLine(String.format("  Married: %d (%.1f%%)", married, 
+            living.isEmpty() ? 0 : (married * 100.0) / living.size()));
     }
     
     /**
@@ -161,9 +189,9 @@ public class ConsoleUI {
                 person.getSex(),
                 person.getOccupation(),
                 person.getOriginStatus(),
+                playerMarker,
                 marriageInfo,
-                childrenInfo,
-                playerMarker
+                childrenInfo                
             ));
             
             // Show parents for natives or if data exists
@@ -278,13 +306,15 @@ public class ConsoleUI {
         // Final statistics
         Village village = engine.getVillage();
         List<Person> finalLiving = village.getLivingVillagers();
-        long finalNatives = finalLiving.stream().filter(p -> !p.isBornOutsideVillage()).count();
-        long finalOutsiders = finalLiving.stream().filter(Person::isBornOutsideVillage).count();
-        
-        writeLine("");
-        writeLine("Final Population Breakdown:");
-        writeLine(String.format("  Natives: %d (%.1f%%)", finalNatives, (finalNatives * 100.0) / finalLiving.size()));
-        writeLine(String.format("  Outsiders: %d (%.1f%%)", finalOutsiders, (finalOutsiders * 100.0) / finalLiving.size()));
+        if (!finalLiving.isEmpty()) {
+            long finalNatives = finalLiving.stream().filter(p -> !p.isBornOutsideVillage()).count();
+            long finalOutsiders = finalLiving.stream().filter(Person::isBornOutsideVillage).count();
+            
+            writeLine("");
+            writeLine("Final Population Breakdown:");
+            writeLine(String.format("  Natives: %d (%.1f%%)", finalNatives, (finalNatives * 100.0) / finalLiving.size()));
+            writeLine(String.format("  Outsiders: %d (%.1f%%)", finalOutsiders, (finalOutsiders * 100.0) / finalLiving.size()));
+        }
         
         console.println("Simulation ended. See output file for details.");
     }
