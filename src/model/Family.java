@@ -76,30 +76,13 @@ public class Family {
                 Person parent = parents.get(i);
                 if (parent.isBornOutsideVillage()) {
                     sb.append(parent.getName()).append(" - ").append(parent.getOriginStatus());
-                    // Show parents if available
-                    if (parent.getMother() != null || parent.getFather() != null) {
-                        sb.append(" (Parents: ");
-                        if (parent.getMother() != null) {
-                            sb.append("Mother: ").append(parent.getMother().getName());
-                        }
-                        if (parent.getFather() != null) {
-                            if (parent.getMother() != null) sb.append(", ");
-                            sb.append("Father: ").append(parent.getFather().getName());
-                        }
-                        sb.append(")");
-                    }
                 } else {
                     sb.append(parent.getName()).append(" - ").append(parent.getOriginStatus());
-                    // Always show parents for natives unless they're outsiders
-                    if (parent.getMother() != null || parent.getFather() != null) {
+                    // Always show parents for natives 
+                    if (parent.getFather() != null && parent.getMother() != null) {
                         sb.append(" (Parents: ");
-                        if (parent.getMother() != null) {
-                            sb.append("Mother: ").append(parent.getMother().getName());
-                        }
-                        if (parent.getFather() != null) {
-                            if (parent.getMother() != null) sb.append(", ");
-                            sb.append("Father: ").append(parent.getFather().getName());
-                        }
+                        sb.append(parent.getFather().getName());
+                        sb.append(" & ").append(parent.getMother().getName());
                         sb.append(")");
                     } else if (!parent.isBornOutsideVillage()) {
                         sb.append(" (Parents: Unknown - missing data)");

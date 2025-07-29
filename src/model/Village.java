@@ -200,6 +200,16 @@ public class Village {
     public String getName() {
         return name;
     }
+    
+    public String getClassification() {
+      	
+	        return switch (this.getFamilies().size()) {
+	        case 1, 2 -> "Farmstead";
+	        case 3, 4 -> "Thorp";
+	        case 5, 6, 7, 8, 9 -> "Hamlet";
+	        default -> "Village";
+	    };
+    }
 
     public List<Person> getAllVillagers() {
         return new ArrayList<>(villagers);

@@ -84,8 +84,8 @@ public class NameGenerator {
      */
     public String generateOccupation(Person.Sex sex) {
         List<String> occupations = (sex == Person.Sex.MALE) 
-            ? Arrays.asList("Farmer", "Blacksmith", "Merchant", "Carpenter", "Miller", "Baker", "Fisherman")
-            : Arrays.asList("Homemaker", "Seamstress", "Midwife", "Herbalist", "Teacher");
+            ? Arrays.asList("Farmer", "Blacksmith", "Merchant", "Carpenter", "Miller", "Baker", "Fisherman", "Hunter", "Cook", "Miner", "Shepherd")
+            : Arrays.asList("Homemaker", "Seamstress", "Merchant", "Herbalist", "Shepherd", "Baker", "Cook", "Farmer");
             
         return occupations.get(random.nextInt(occupations.size()));
     }

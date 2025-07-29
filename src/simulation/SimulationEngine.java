@@ -179,10 +179,13 @@ public class SimulationEngine {
     private void processMarriages(List<SimulationEvent> events) {
         List<Person> eligibleVillagers = village.getLivingVillagers().stream()
             .filter(Person::isEligibleForMarriage)
-            .filter(p -> demographicsService.shouldMarriageOccur(config.getMarriageChance()))
+            //.filter(p -> demographicsService.shouldMarriageOccur(config.getMarriageChance()))
             .toList();
         
-        for (Person person : eligibleVillagers) {
+        List<Person> mutablePeeps = new ArrayList<>(eligibleVillagers);
+        mutablePeeps.sort(Comparator.comparingInt(Person::getAge).reversed());
+        
+        for (Person person : mutablePeeps) {
             if (!person.isEligibleForMarriage()) continue; // Could have married already this year
             
             Person spouse = findOrCreateSpouse(person, events);
@@ -207,7 +210,7 @@ public class SimulationEngine {
         if (!candidates.isEmpty()) {
             // Marry someone from the village
             return candidates.get(random.nextInt(candidates.size()));
-        } else {
+        } else if (person.getAge() >= 25 && Math.random() < 0.3) {
             // Create a new spouse from outside the village
             Person.Sex spouseSex = person.getSex().getOpposite();
             String spouseName = nameGenerator.generateName(spouseSex);
@@ -222,6 +225,8 @@ public class SimulationEngine {
             events.add(SimulationEvent.outsiderArrival(spouse, currentYear, reason));
             
             return spouse;
+        } else {
+        	return null;
         }
     }
     

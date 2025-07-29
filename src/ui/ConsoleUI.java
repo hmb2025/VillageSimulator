@@ -34,9 +34,7 @@ public class ConsoleUI {
         this.fileWriter = new PrintWriter(new BufferedWriter(new FileWriter(filename)));
         
         console.println("Output will be written to: " + filename);
-        writeLine("Village Simulation Log");
-        writeLine("Started: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        writeLine(SECTION_SEPARATOR);
+
     }
     
     /**
@@ -45,7 +43,7 @@ public class ConsoleUI {
     public String getPlayerName() {
         console.print("Enter starting player name (male): ");
         String name = scanner.nextLine();
-        writeLine("Player name: " + name);
+        //writeLine("Player name: " + name);
         return name;
     }
     
@@ -69,6 +67,20 @@ public class ConsoleUI {
                 console.println("Please enter a valid number.");
             }
         }
+        
+        Village village = engine.getVillage();
+        String v = 	"";
+        switch (couples) {
+	        case 1, 2 -> v = "Farmstead";
+	        case 3, 4 -> v = "Thorp";
+	        case 5, 6, 7, 8, 9 -> v = "Hamlet";
+	        default -> v = "Village"; 
+        }
+        
+        writeLine(v + " of " + village.getName() + " Simulation Log");
+        writeLine("Started: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        writeLine(SECTION_SEPARATOR);
+        
         
         writeLine("Additional starting couples: " + couples);
         return couples;
