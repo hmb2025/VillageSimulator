@@ -9,84 +9,93 @@ import java.io.IOException;
  * This class coordinates the initialization and execution of the simulation.
  */
 public class Main {
-    private static final int STARTING_PLAYER_AGE = 18;
-    private static final String STARTING_OCCUPATION = "Farmer";
+    // Configuration Constants - Clear naming for initial player settings
+    private static final int INITIAL_PLAYER_AGE_YEARS = 18;
+    private static final String INITIAL_PLAYER_OCCUPATION = "Farmer";
+    private static final String DEFAULT_VILLAGE_NAME = "Haven";
     
     public static void main(String[] args) {
-        // Initialize components
-        Scanner scanner = new Scanner(System.in);
-        SimulationConfig config = SimulationConfig.createDefault();
-        Village village = new Village("Haven");
-        SimulationEngine engine = new SimulationEngine(village, config);
-        ConsoleUI ui = null;
+        // Initialize components with clear variable names
+        Scanner userInputScanner = new Scanner(System.in);
+        SimulationConfig simulationConfig = SimulationConfig.createDefault();
+        Village simulationVillage = new Village(DEFAULT_VILLAGE_NAME);
+        SimulationEngine simulationEngine = new SimulationEngine(simulationVillage, simulationConfig);
+        ConsoleUI userInterface = null;
         
         try {
-            ui = new ConsoleUI(engine, scanner);
+            userInterface = new ConsoleUI(simulationEngine, userInputScanner);
             
-            // Get player name and create initial player
-            String playerName = ui.getPlayerName();
-            Person player = createInitialPlayer(playerName);
-            engine.setInitialPlayer(player);
+            // Initialize simulation: Get player details and create initial population
+            String playerCharacterName = userInterface.requestPlayerName();
+            Person playerCharacter = createInitialPlayerCharacter(playerCharacterName);
+            simulationEngine.setInitialPlayer(playerCharacter);
             
-            // Get number of additional couples and initialize them
-            int additionalCouples = ui.getNumberOfAdditionalCouples();
-            engine.initializeAdditionalCouples(additionalCouples);
+            // Initialize village population based on user preference
+            int numberOfStartingCouples = userInterface.requestStartingPopulationSize();
+            simulationEngine.initializeStartingPopulation(numberOfStartingCouples);
             
-            // Run simulation
-            runSimulation(engine, ui, config);
+            // Execute main simulation loop
+            executeSimulationLoop(simulationEngine, userInterface, simulationConfig);
             
-        } catch (IOException e) {
-            System.err.println("Error creating output file: " + e.getMessage());
+        } catch (IOException ioException) {
+            System.err.println("ERROR: Failed to create simulation output file - " + ioException.getMessage());
         } finally {
-            scanner.close();
-            if (ui != null) {
-                ui.close();
+            // Ensure proper resource cleanup
+            userInputScanner.close();
+            if (userInterface != null) {
+                userInterface.close();
             }
         }
     }
     
     /**
-     * Creates the initial player character.
+     * Creates the initial player character with predefined starting attributes.
+     * 
+     * @param characterName The name chosen by the player
+     * @return A new Person object representing the player character
      */
-    private static Person createInitialPlayer(String name) {
+    private static Person createInitialPlayerCharacter(String characterName) {
         return new Person(
-            name,
-            STARTING_PLAYER_AGE,
+            characterName,
+            INITIAL_PLAYER_AGE_YEARS,
             Person.Sex.MALE,
-            false, // Born in village
-            STARTING_OCCUPATION
+            false, // Native to village (not outsider)
+            INITIAL_PLAYER_OCCUPATION
         );
     }
     
     /**
-     * Runs the main simulation loop.
+     * Executes the main simulation loop, processing years until termination conditions are met.
+     * 
+     * @param simulationEngine The engine managing simulation logic
+     * @param userInterface The UI for displaying results
+     * @param simulationConfig Configuration parameters for the simulation
      */
-    private static void runSimulation(SimulationEngine engine, ConsoleUI ui, SimulationConfig config) {
-        boolean userWantsToContinue = true;
+    private static void executeSimulationLoop(SimulationEngine simulationEngine, 
+                                             ConsoleUI userInterface, 
+                                             SimulationConfig simulationConfig) {
+        boolean simulationActive = true;
         
-        while (userWantsToContinue) {
-            // Simulate one year
-            SimulationResult result = engine.simulateYear();
+        while (simulationActive) {
+            // Process one year of simulation
+            SimulationResult yearResult = simulationEngine.processSimulationYear();
             
-            // Display results
-            if (config.isVerboseOutput()) {
-                ui.displayYearSummary();
+            // Display comprehensive year report if verbose mode enabled
+            if (simulationConfig.isVerboseReportingEnabled()) {
+                userInterface.displayAnnualReport();
             }
             
-            // Check if simulation should end
-            if (!result.shouldContinue()) {
-                ui.displayFinalSummary(result.getEndReason());
-                break;
+            // Check simulation termination conditions
+            if (!yearResult.shouldContinue()) {
+                userInterface.displaySimulationSummary(yearResult.getTerminationReason());
+                simulationActive = false;
+            } else if (simulationEngine.getCurrentYear() >= simulationConfig.getMaximumSimulationYears()) {
+                userInterface.displaySimulationSummary("Maximum simulation duration reached");
+                simulationActive = false;
             }
             
-            // Check if we've reached max years
-            if (engine.getCurrentYear() >= config.getMaxYears()) {
-                ui.displayFinalSummary("Maximum years reached");
-                break;
-            }
-            
-            // Allow user to pause or quit (optional)
-            // userWantsToContinue = ui.promptContinue();
+            // Note: User interaction for continuation could be enabled here if desired
+            // simulationActive = simulationActive && userInterface.promptUserToContinue();
         }
     }
 }

@@ -6,57 +6,86 @@ import java.util.Objects;
 
 /**
  * Represents a person in the village simulation.
- * This class encapsulates all personal attributes and relationships.
+ * Encapsulates all personal attributes, relationships, and life events.
  */
 public class Person {
+    /**
+     * Biological sex enumeration with utility methods.
+     */
     public enum Sex { 
-        MALE, FEMALE;
+        MALE("Male", "M"),
+        FEMALE("Female", "F");
+        
+        private final String fullName;
+        private final String abbreviation;
+        
+        Sex(String fullName, String abbreviation) {
+            this.fullName = fullName;
+            this.abbreviation = abbreviation;
+        }
         
         public Sex getOpposite() {
             return this == MALE ? FEMALE : MALE;
         }
+        
+        public String getFullName() { return fullName; }
+        public String getAbbreviation() { return abbreviation; }
+        
+        @Override
+        public String toString() { return fullName; }
     }
 
-    // Personal attributes
-    private String name;
-    private int age;
-    private final Sex sex;
-    private boolean isAlive;
-    private final boolean bornOutsideVillage;
-    private String occupation;
+    // Personal Identity Attributes
+    private String fullName;
+    private int ageInYears;
+    private final Sex biologicalSex;
+    private boolean livingStatus;
+    private final boolean outsiderOrigin;  // true if born outside village
+    private String primaryOccupation;
     
-    // Relationships
-    private Person marriedTo;
-    private final List<Person> children;
-    private Person mother;
-    private Person father;
+    // Family Relationships
+    private Person marriagePartner;
+    private final List<Person> offspring;
+    private Person biologicalMother;
+    private Person biologicalFather;
     
-    // Constants
+    // Life Event Configuration Constants
     public static final int MINIMUM_MARRIAGE_AGE = 18;
     public static final int MAXIMUM_MARRIAGE_AGE = 29;
     public static final int MAXIMUM_CHILDREN = 2;
+    public static final int PLAYER_LINEAGE_CHILD_LIMIT = 1;
 
     /**
-     * Creates a new person with the specified attributes.
+     * Creates a new person with specified attributes.
+     * 
+     * @param fullName The person's full name
+     * @param ageInYears Initial age in years
+     * @param biologicalSex Biological sex (Male/Female)
+     * @param outsiderOrigin True if born outside the village
+     * @param primaryOccupation Person's occupation or trade
      */
-    public Person(String name, int age, Sex sex, boolean bornOutsideVillage, String occupation) {
-        validateName(name);
-        validateAge(age);
-        Objects.requireNonNull(sex, "Sex cannot be null");
+    public Person(String fullName, int ageInYears, Sex biologicalSex, 
+                  boolean outsiderOrigin, String primaryOccupation) {
+        validateName(fullName);
+        validateAge(ageInYears);
+        Objects.requireNonNull(biologicalSex, "Biological sex cannot be null");
         
-        this.name = name;
-        this.age = age;
-        this.sex = sex;
-        this.isAlive = true;
-        this.bornOutsideVillage = bornOutsideVillage;
-        this.occupation = occupation != null ? occupation : "None";
-        this.children = new ArrayList<>();
+        this.fullName = fullName;
+        this.ageInYears = ageInYears;
+        this.biologicalSex = biologicalSex;
+        this.livingStatus = true;
+        this.outsiderOrigin = outsiderOrigin;
+        this.primaryOccupation = primaryOccupation != null ? primaryOccupation : "None";
+        this.offspring = new ArrayList<>();
     }
 
-    // Validation methods
+    // Validation Methods
     private void validateName(String name) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Name cannot be null or empty");
+        }
+        if (name.length() > 50) {
+            throw new IllegalArgumentException("Name cannot exceed 50 characters");
         }
     }
     
@@ -64,150 +93,209 @@ public class Person {
         if (age < 0) {
             throw new IllegalArgumentException("Age cannot be negative");
         }
+        if (age > 150) {
+            throw new IllegalArgumentException("Age cannot exceed 150 years");
+        }
     }
 
-    // Relationship methods
+    // Marriage and Relationship Methods
+    
     /**
-     * Marries this person to the specified spouse.
+     * Establishes a marriage between this person and the specified partner.
+     * 
+     * @param partner The person to marry
      * @throws IllegalStateException if either person is dead or already married
-     * @throws IllegalArgumentException if spouses are of the same sex
+     * @throws IllegalArgumentException if partners are of the same sex
      */
-    public void marry(Person spouse) {
-        Objects.requireNonNull(spouse, "Spouse cannot be null");
+    public void marry(Person partner) {
+        Objects.requireNonNull(partner, "Marriage partner cannot be null");
         
-        if (!this.isAlive || !spouse.isAlive) {
-            throw new IllegalStateException("Cannot marry: one or both persons are not alive");
+        if (!this.livingStatus || !partner.livingStatus) {
+            throw new IllegalStateException(
+                "Cannot establish marriage: one or both persons are deceased");
         }
-        if (this.marriedTo != null || spouse.marriedTo != null) {
-            throw new IllegalStateException("Cannot marry: one or both persons are already married");
+        if (this.marriagePartner != null || partner.marriagePartner != null) {
+            throw new IllegalStateException(
+                "Cannot establish marriage: one or both persons are already married");
         }
-        if (this.sex == spouse.sex) {
-            throw new IllegalArgumentException("Cannot marry: spouses must be of opposite sex");
+        if (this.biologicalSex == partner.biologicalSex) {
+            throw new IllegalArgumentException(
+                "Cannot establish marriage: partners must be of opposite biological sex");
         }
         
-        this.marriedTo = spouse;
-        spouse.marriedTo = this;
+        this.marriagePartner = partner;
+        partner.marriagePartner = this;
     }
 
     /**
-     * Ends the marriage for both spouses.
+     * Dissolves the marriage for both partners.
      */
-    public void divorce() {
-        if (this.marriedTo != null) {
-            Person spouse = this.marriedTo;
-            this.marriedTo = null;
-            spouse.marriedTo = null;
+    public void dissolveMarriage() {
+        if (this.marriagePartner != null) {
+            Person formerSpouse = this.marriagePartner;
+            this.marriagePartner = null;
+            formerSpouse.marriagePartner = null;
         }
     }
 
     /**
-     * Adds a child to both parents' child lists.
+     * Records a child for this parent and their spouse.
+     * 
+     * @param child The child to add
      * @throws IllegalStateException if maximum children limit is reached
      */
     public void addChild(Person child) {
         Objects.requireNonNull(child, "Child cannot be null");
         
-        if (this.children.size() >= MAXIMUM_CHILDREN) {
+        if (this.offspring.size() >= MAXIMUM_CHILDREN) {
             throw new IllegalStateException(
-                String.format("Cannot add child: maximum of %d children per parent", MAXIMUM_CHILDREN)
-            );
+                String.format("Cannot add child: maximum of %d children per parent reached", 
+                    MAXIMUM_CHILDREN));
         }
         
-        this.children.add(child);
-        if (this.marriedTo != null && !this.marriedTo.children.contains(child)) {
-            this.marriedTo.children.add(child);
+        this.offspring.add(child);
+        
+        // Also add to spouse's children if married
+        if (this.marriagePartner != null && !this.marriagePartner.offspring.contains(child)) {
+            this.marriagePartner.offspring.add(child);
         }
     }
 
     /**
-     * Sets the parents of this person.
+     * Sets the biological parents of this person.
+     * 
+     * @param mother Biological mother
+     * @param father Biological father
      */
     public void setParents(Person mother, Person father) {
-        this.mother = mother;
-        this.father = father;
+        this.biologicalMother = mother;
+        this.biologicalFather = father;
     }
 
+    // Life Cycle Methods
+    
     /**
      * Ages the person by one year.
      */
     public void ageOneYear() {
-        this.age++;
+        this.ageInYears++;
     }
 
     /**
-     * Marks the person as dead.
+     * Processes the death of this person.
+     * Handles all necessary relationship updates.
      */
     public void die() {
-        this.isAlive = false;
-        // Widow the spouse
-        if (this.marriedTo != null) {
-            this.marriedTo.marriedTo = null;
-            this.marriedTo = null;
+        this.livingStatus = false;
+        
+        // Handle widowhood
+        if (this.marriagePartner != null) {
+            this.marriagePartner.marriagePartner = null;
+            this.marriagePartner = null;
         }
     }
 
+    // Eligibility Check Methods
+    
     /**
-     * Checks if this person can marry based on age and marital status.
+     * Determines if this person is eligible for marriage.
+     * 
+     * @return true if person meets all marriage eligibility criteria
      */
     public boolean isEligibleForMarriage() {
-        return isAlive && 
-               marriedTo == null && 
-               age >= MINIMUM_MARRIAGE_AGE && 
-               age <= MAXIMUM_MARRIAGE_AGE && 
-               children.isEmpty();
+        return livingStatus && 
+               marriagePartner == null && 
+               ageInYears >= MINIMUM_MARRIAGE_AGE && 
+               ageInYears <= MAXIMUM_MARRIAGE_AGE && 
+               offspring.isEmpty();
     }
 
     /**
-     * Checks if this person can have more children.
+     * Determines if this person can have additional children.
+     * 
+     * @return true if person can have more children
      */
     public boolean canHaveMoreChildren() {
-        return isAlive && 
-               marriedTo != null && 
-               marriedTo.isAlive && 
-               children.size() < MAXIMUM_CHILDREN;
+        return livingStatus && 
+               marriagePartner != null && 
+               marriagePartner.livingStatus && 
+               offspring.size() < MAXIMUM_CHILDREN;
     }
 
-    // Getters
-    public String getName() { return name; }
-    public int getAge() { return age; }
-    public Sex getSex() { return sex; }
-    public boolean isAlive() { return isAlive; }
-    public boolean isBornOutsideVillage() { return bornOutsideVillage; }
-    public String getOccupation() { return occupation; }
-    public Person getMarriedTo() { return marriedTo; }
-    public List<Person> getChildren() { return new ArrayList<>(children); }
-    public boolean hasChildren() { return !children.isEmpty(); }
-    public Person getMother() { return mother; }
-    public Person getFather() { return father; }
+    // Accessor Methods (Getters)
+    public String getName() { return fullName; }
+    public int getAge() { return ageInYears; }
+    public Sex getSex() { return biologicalSex; }
+    public boolean isAlive() { return livingStatus; }
+    public boolean isBornOutsideVillage() { return outsiderOrigin; }
+    public String getOccupation() { return primaryOccupation; }
+    public Person getMarriedTo() { return marriagePartner; }
+    public List<Person> getChildren() { return new ArrayList<>(offspring); }
+    public boolean hasChildren() { return !offspring.isEmpty(); }
+    public Person getMother() { return biologicalMother; }
+    public Person getFather() { return biologicalFather; }
     
     /**
-     * Gets a display name with origin status.
+     * Gets a comprehensive display name with key attributes.
+     * 
+     * @return Formatted display name
      */
-    public String getDisplayName() {
-        return name;
+    public String getDetailedDisplayName() {
+        return String.format("%s (%d, %s, %s)", 
+            fullName, ageInYears, biologicalSex.getFullName(), getOriginStatus());
     }
     
     /**
-     * Gets origin status as a string.
+     * Gets the origin status as a descriptive string.
+     * 
+     * @return "Outsider" or "Native"
      */
     public String getOriginStatus() {
-        return bornOutsideVillage ? "Outsider" : "Native";
+        return outsiderOrigin ? "Outsider" : "Native";
     }
     
-    // Setters (only for mutable properties)
-    public void setName(String name) {
-        validateName(name);
-        this.name = name;
+    /**
+     * Gets a summary of the person's family status.
+     * 
+     * @return Description of marital and parental status
+     */
+    public String getFamilyStatus() {
+        StringBuilder status = new StringBuilder();
+        
+        if (marriagePartner != null) {
+            status.append("Married to ").append(marriagePartner.getName());
+        } else {
+            status.append("Unmarried");
+        }
+        
+        if (!offspring.isEmpty()) {
+            status.append(", ").append(offspring.size()).append(" child");
+            if (offspring.size() > 1) status.append("ren");
+        }
+        
+        return status.toString();
     }
     
-    public void setOccupation(String occupation) {
-        this.occupation = occupation != null ? occupation : "None";
+    // Mutator Methods (Setters) - only for mutable properties
+    public void setName(String newName) {
+        validateName(newName);
+        this.fullName = newName;
+    }
+    
+    public void setOccupation(String newOccupation) {
+        this.primaryOccupation = newOccupation != null ? newOccupation : "None";
     }
 
     @Override
     public String toString() {
-        return String.format("Person{name='%s', age=%d, sex=%s, alive=%s, origin=%s}", 
-            name, age, sex, isAlive, getOriginStatus());
+        return String.format(
+            "Person{name='%s', age=%d, sex=%s, status=%s, origin=%s, occupation='%s'}", 
+            fullName, 
+            ageInYears, 
+            biologicalSex.getFullName(), 
+            livingStatus ? "Living" : "Deceased", 
+            getOriginStatus(),
+            primaryOccupation);
     }
 
     @Override
@@ -215,15 +303,15 @@ public class Person {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Person person = (Person) o;
-        return age == person.age && 
-               isAlive == person.isAlive && 
-               bornOutsideVillage == person.bornOutsideVillage && 
-               Objects.equals(name, person.name) && 
-               sex == person.sex;
+        return ageInYears == person.ageInYears && 
+               livingStatus == person.livingStatus && 
+               outsiderOrigin == person.outsiderOrigin && 
+               Objects.equals(fullName, person.fullName) && 
+               biologicalSex == person.biologicalSex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, age, sex, isAlive, bornOutsideVillage);
+        return Objects.hash(fullName, ageInYears, biologicalSex, livingStatus, outsiderOrigin);
     }
 }

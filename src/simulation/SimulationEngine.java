@@ -5,307 +5,382 @@ import service.*;
 import java.util.*;
 
 /**
- * The main simulation engine that handles the yearly progression of the village.
+ * The main simulation engine that manages the progression of village life over time.
+ * Handles population dynamics, marriages, births, deaths, and player succession.
  */
 public class SimulationEngine {
-    private final Village village;
-    private final NameGenerator nameGenerator;
-    private final DemographicsService demographicsService;
-    private final Random random;
+    private final Village managedVillage;
+    private final NameGenerator nameGenerationService;
+    private final DemographicsService demographicsCalculator;
+    private final Random randomNumberGenerator;
     
-    private Person currentPlayer;
-    private int currentYear;
-    private final List<List<SimulationEvent>> yearlyEvents;
+    private Person currentPlayerCharacter;
+    private int currentSimulationYear;
+    private final List<List<SimulationEvent>> yearlyEventHistory;
     
     // Configuration
-    private final SimulationConfig config;
+    private final SimulationConfig simulationConfiguration;
+    
+    // Statistics tracking
+    private int totalBirthsCount = 0;
+    private int totalDeathsCount = 0;
+    private int totalMarriagesCount = 0;
+    private int totalOutsiderArrivalsCount = 0;
     
     public SimulationEngine(Village village, SimulationConfig config) {
-        this.village = Objects.requireNonNull(village);
-        this.config = Objects.requireNonNull(config);
-        this.random = new Random();
-        this.nameGenerator = new NameGenerator(random);
-        this.demographicsService = new DemographicsService(random);
-        this.currentYear = 0;
-        this.yearlyEvents = new ArrayList<>();
+        this.managedVillage = Objects.requireNonNull(village, "Village cannot be null");
+        this.simulationConfiguration = Objects.requireNonNull(config, "Configuration cannot be null");
+        this.randomNumberGenerator = new Random();
+        this.nameGenerationService = new NameGenerator(randomNumberGenerator);
+        this.demographicsCalculator = new DemographicsService(randomNumberGenerator);
+        this.currentSimulationYear = 0;
+        this.yearlyEventHistory = new ArrayList<>();
     }
     
     /**
-     * Sets the initial player character.
+     * Sets the initial player character and adds them to the village.
+     * 
+     * @param playerCharacter The starting player character
      */
-    public void setInitialPlayer(Person player) {
-        this.currentPlayer = Objects.requireNonNull(player);
-        village.addVillager(player);
-        yearlyEvents.add(new ArrayList<>()); // Year 0 events
+    public void setInitialPlayer(Person playerCharacter) {
+        this.currentPlayerCharacter = Objects.requireNonNull(playerCharacter, "Player character cannot be null");
+        managedVillage.addVillager(playerCharacter);
+        yearlyEventHistory.add(new ArrayList<>()); // Initialize year 0 events list
     }
     
     /**
-     * Initializes additional starting couples as outsiders.
-     * All these couples are eligible to marry each other.
+     * Initializes the starting population with the specified number of married couples.
+     * These couples represent the founding families of the settlement.
+     * 
+     * @param numberOfCouples Number of married couples to create (0-10)
      */
-    public void initializeAdditionalCouples(int numberOfCouples) {
+    public void initializeStartingPopulation(int numberOfCouples) {
         if (numberOfCouples <= 0) return;
         
-        List<SimulationEvent> events = new ArrayList<>();
-        List<Person> males = new ArrayList<>();
-        List<Person> females = new ArrayList<>();
+        List<SimulationEvent> initializationEvents = new ArrayList<>();
+        List<Person> foundingMales = new ArrayList<>();
+        List<Person> foundingFemales = new ArrayList<>();
         
-        // Create the specified number of males and females
-        for (int i = 0; i < numberOfCouples; i++) {
-            // Create male
-            String maleName = nameGenerator.generateName(Person.Sex.MALE);
-            String maleOccupation = nameGenerator.generateOccupation(Person.Sex.MALE);
-            int maleAge = 18 + random.nextInt(12); // Age 18-29
-            Person male = new Person(maleName, maleAge, Person.Sex.MALE, true, maleOccupation);
-            males.add(male);
-            village.addVillager(male);
+        // Generate founding couples with varied characteristics
+        for (int coupleIndex = 0; coupleIndex < numberOfCouples; coupleIndex++) {
+            // Create male founding member
+            String maleName = nameGenerationService.generateName(Person.Sex.MALE);
+            String maleOccupation = nameGenerationService.generateOccupation(Person.Sex.MALE);
+            int maleAge = 18 + randomNumberGenerator.nextInt(12); // Ages 18-29
+            Person foundingMale = new Person(maleName, maleAge, Person.Sex.MALE, true, maleOccupation);
+            foundingMales.add(foundingMale);
+            managedVillage.addVillager(foundingMale);
             
-            // Create female
-            String femaleName = nameGenerator.generateName(Person.Sex.FEMALE);
-            String femaleOccupation = nameGenerator.generateOccupation(Person.Sex.FEMALE);
-            int femaleAge = 18 + random.nextInt(12); // Age 18-29
-            Person female = new Person(femaleName, femaleAge, Person.Sex.FEMALE, true, femaleOccupation);
-            females.add(female);
-            village.addVillager(female);
+            // Create female founding member
+            String femaleName = nameGenerationService.generateName(Person.Sex.FEMALE);
+            String femaleOccupation = nameGenerationService.generateOccupation(Person.Sex.FEMALE);
+            int femaleAge = 18 + randomNumberGenerator.nextInt(12); // Ages 18-29
+            Person foundingFemale = new Person(femaleName, femaleAge, Person.Sex.FEMALE, true, femaleOccupation);
+            foundingFemales.add(foundingFemale);
+            managedVillage.addVillager(foundingFemale);
             
-            events.add(SimulationEvent.outsiderArrival(male, 0, "Initial settler"));
-            events.add(SimulationEvent.outsiderArrival(female, 0, "Initial settler"));
+            // Record arrival events
+            initializationEvents.add(SimulationEvent.outsiderArrival(
+                foundingMale, 0, "Founding settler - initial population"));
+            initializationEvents.add(SimulationEvent.outsiderArrival(
+                foundingFemale, 0, "Founding settler - initial population"));
+                
+            totalOutsiderArrivalsCount += 2;
         }
         
-        // Randomly pair them up for marriage
-        Collections.shuffle(males, random);
-        Collections.shuffle(females, random);
+        // Randomly pair founding members for marriage
+        Collections.shuffle(foundingMales, randomNumberGenerator);
+        Collections.shuffle(foundingFemales, randomNumberGenerator);
         
-        for (int i = 0; i < numberOfCouples; i++) {
-            Person male = males.get(i);
-            Person female = females.get(i);
+        for (int coupleIndex = 0; coupleIndex < numberOfCouples; coupleIndex++) {
+            Person male = foundingMales.get(coupleIndex);
+            Person female = foundingFemales.get(coupleIndex);
             try {
                 male.marry(female);
-                events.add(SimulationEvent.marriage(male, female, 0));
+                initializationEvents.add(SimulationEvent.marriage(male, female, 0));
+                totalMarriagesCount++;
             } catch (IllegalStateException | IllegalArgumentException e) {
-                // Marriage failed, continue
+                // Log marriage failure but continue initialization
+                System.err.println("Warning: Failed to marry founding couple - " + e.getMessage());
             }
         }
         
-        // Add events to year 0
-        if (!yearlyEvents.isEmpty()) {
-            yearlyEvents.get(0).addAll(events);
+        // Record all initialization events
+        if (!yearlyEventHistory.isEmpty()) {
+            yearlyEventHistory.get(0).addAll(initializationEvents);
         }
     }
     
     /**
-     * Simulates one year in the village.
-     * Fixed to process events in correct order for accurate reporting.
+     * Processes one complete year of simulation, handling all demographic events.
+     * 
+     * @return SimulationResult indicating whether simulation should continue
      */
-    public SimulationResult simulateYear() {
-        if (currentYear >= config.getMaxYears() || currentPlayer == null || !currentPlayer.isAlive()) {
-            return SimulationResult.ended("Simulation ended");
+    public SimulationResult processSimulationYear() {
+        // Check termination conditions before processing
+        if (currentSimulationYear >= simulationConfiguration.getMaximumSimulationYears()) {
+            return SimulationResult.ended("Maximum simulation years reached");
         }
         
-        // Increment year first (so events are recorded in the correct year)
-        currentYear++;
+        if (currentPlayerCharacter == null || !currentPlayerCharacter.isAlive()) {
+            return SimulationResult.ended("No living player character or heir");
+        }
         
-        List<SimulationEvent> events = new ArrayList<>();
+        // Advance to next year
+        currentSimulationYear++;
         
-        // Process deaths and aging
-        processAgingAndDeaths(events);
+        List<SimulationEvent> currentYearEvents = new ArrayList<>();
         
-        // Process marriages
-        processMarriages(events);
+        // Process demographic events in logical order
+        processAnnualAging(currentYearEvents);
+        processMortalityEvents(currentYearEvents);
+        processMarriageFormation(currentYearEvents);
+        processBirthEvents(currentYearEvents);
         
-        // Process births
-        processBirths(events);
+        // Clean up deceased villagers from village registry
+        managedVillage.removeDeceased();
         
-        // Clean up deceased villagers
-        village.removeDeceased();
+        // Store this year's events in history
+        yearlyEventHistory.add(currentYearEvents);
         
-        // Store events for this year
-        yearlyEvents.add(events);
+        // Check if simulation should continue
+        if (currentPlayerCharacter == null || !currentPlayerCharacter.isAlive()) {
+            return SimulationResult.ended("Player lineage ended - no living heir");
+        }
         
-        return SimulationResult.continued(events);
+        return SimulationResult.continued(currentYearEvents);
     }
     
     /**
-     * Processes aging and potential deaths for all villagers.
+     * Processes aging for all villagers (happens at start of year).
      */
-    private void processAgingAndDeaths(List<SimulationEvent> events) {
-        List<Person> villagersCopy = new ArrayList<>(village.getAllVillagers());
+    private void processAnnualAging(List<SimulationEvent> yearEvents) {
+        List<Person> allVillagers = new ArrayList<>(managedVillage.getAllVillagers());
+        for (Person villager : allVillagers) {
+            if (villager.isAlive()) {
+                villager.ageOneYear();
+            }
+        }
+    }
+    
+    /**
+     * Processes mortality events based on age and demographics.
+     */
+    private void processMortalityEvents(List<SimulationEvent> yearEvents) {
+        List<Person> livingVillagers = new ArrayList<>(managedVillage.getLivingVillagers());
         
-        for (Person person : villagersCopy) {
-            if (!person.isAlive()) continue;
-            
-            person.ageOneYear();
-            
-            if (demographicsService.shouldPersonDie(person)) {
-                boolean wasPlayer = (person == currentPlayer);
-                person.die();
+        for (Person villager : livingVillagers) {
+            if (demographicsCalculator.shouldPersonDie(villager)) {
+                boolean wasPlayerCharacter = (villager == currentPlayerCharacter);
+                villager.die();
+                totalDeathsCount++;
                 
-                events.add(SimulationEvent.death(person, currentYear, wasPlayer));
+                yearEvents.add(SimulationEvent.death(villager, currentSimulationYear, wasPlayerCharacter));
                 
-                if (wasPlayer) {
-                    handlePlayerDeath(events);
+                if (wasPlayerCharacter) {
+                    handlePlayerSuccession(yearEvents);
                 }
             }
         }
     }
     
     /**
-     * Handles the death of the current player character.
+     * Handles succession when the player character dies.
      */
-    private void handlePlayerDeath(List<SimulationEvent> events) {
-        // Try to find an heir (first child)
-        Person heir = null;
-        if (currentPlayer.hasChildren()) {
-            for (Person child : currentPlayer.getChildren()) {
+    private void handlePlayerSuccession(List<SimulationEvent> yearEvents) {
+        Person successor = null;
+        
+        // Primary succession: First living child
+        if (currentPlayerCharacter.hasChildren()) {
+            for (Person child : currentPlayerCharacter.getChildren()) {
                 if (child.isAlive()) {
-                    heir = child;
+                    successor = child;
                     break;
                 }
             }
         }
         
-        if (heir != null) {
-            currentPlayer = heir;
-            events.add(SimulationEvent.playerChange(heir, currentYear));
+        // Secondary succession: Could be extended to siblings, spouse, etc.
+        // Currently, simulation ends if no direct heir
+        
+        if (successor != null) {
+            currentPlayerCharacter = successor;
+            yearEvents.add(SimulationEvent.playerChange(successor, currentSimulationYear));
         } else {
-            currentPlayer = null;
-            events.add(SimulationEvent.simulationEnd("No heir found. Simulation ends.", currentYear));
+            currentPlayerCharacter = null;
+            yearEvents.add(SimulationEvent.simulationEnd(
+                "No eligible heir found for succession", currentSimulationYear));
         }
     }
     
     /**
-     * Processes potential marriages for eligible villagers.
+     * Processes marriage formation for eligible villagers.
      */
-    private void processMarriages(List<SimulationEvent> events) {
-        List<Person> eligibleVillagers = village.getLivingVillagers().stream()
+    private void processMarriageFormation(List<SimulationEvent> yearEvents) {
+        List<Person> marriageCandidates = managedVillage.getLivingVillagers().stream()
             .filter(Person::isEligibleForMarriage)
-            //.filter(p -> demographicsService.shouldMarriageOccur(config.getMarriageChance()))
             .toList();
         
-        List<Person> mutablePeeps = new ArrayList<>(eligibleVillagers);
-        mutablePeeps.sort(Comparator.comparingInt(Person::getAge).reversed());
+        // Process marriages with oldest candidates first (more realistic)
+        List<Person> sortedCandidates = new ArrayList<>(marriageCandidates);
+        sortedCandidates.sort(Comparator.comparingInt(Person::getAge).reversed());
         
-        for (Person person : mutablePeeps) {
-            if (!person.isEligibleForMarriage()) continue; // Could have married already this year
+        for (Person candidate : sortedCandidates) {
+            if (!candidate.isEligibleForMarriage()) continue; // May have married earlier in loop
             
-            Person spouse = findOrCreateSpouse(person, events);
-            if (spouse != null) {
+            Person potentialSpouse = findOrGenerateSpouse(candidate, yearEvents);
+            if (potentialSpouse != null) {
                 try {
-                    person.marry(spouse);
-                    events.add(SimulationEvent.marriage(person, spouse, currentYear));
+                    candidate.marry(potentialSpouse);
+                    yearEvents.add(SimulationEvent.marriage(candidate, potentialSpouse, currentSimulationYear));
+                    totalMarriagesCount++;
                 } catch (IllegalStateException | IllegalArgumentException e) {
-                    // Marriage failed, continue
+                    // Marriage failed - log but continue
+                    System.err.println("Warning: Marriage failed - " + e.getMessage());
                 }
             }
         }
     }
     
     /**
-     * Finds an eligible spouse from the village or creates a new one from outside.
-     * Now tracks why outsiders are created.
+     * Finds an eligible spouse from the village or generates an outsider if needed.
+     * Includes detailed reasoning for outsider generation.
      */
-    private Person findOrCreateSpouse(Person person, List<SimulationEvent> events) {
-        List<Person> candidates = village.findEligibleSpouses(person);
+    private Person findOrGenerateSpouse(Person seekingSpouse, List<SimulationEvent> yearEvents) {
+        List<Person> eligiblePartners = managedVillage.findEligibleSpouses(seekingSpouse);
         
-        if (!candidates.isEmpty()) {
-            // Marry someone from the village
-            return candidates.get(random.nextInt(candidates.size()));
-        } else if (person.getAge() >= 25 && Math.random() < 0.3) {
-            // Create a new spouse from outside the village
-            Person.Sex spouseSex = person.getSex().getOpposite();
-            String spouseName = nameGenerator.generateName(spouseSex);
-            String occupation = nameGenerator.generateOccupation(spouseSex);
-            int spouseAge = demographicsService.generateSpouseAge();
+        if (!eligiblePartners.isEmpty()) {
+            // Select partner from existing villagers
+            return eligiblePartners.get(randomNumberGenerator.nextInt(eligiblePartners.size()));
+        } else if (seekingSpouse.getAge() >= 25 && Math.random() < 0.3) {
+            // Generate outsider spouse if person is older and no local options
+            Person.Sex requiredSex = seekingSpouse.getSex().getOpposite();
+            String spouseName = nameGenerationService.generateName(requiredSex);
+            String spouseOccupation = nameGenerationService.generateOccupation(requiredSex);
+            int spouseAge = demographicsCalculator.generateSpouseAge();
             
-            Person spouse = new Person(spouseName, spouseAge, spouseSex, true, occupation);
-            village.addVillager(spouse);
+            Person outsiderSpouse = new Person(spouseName, spouseAge, requiredSex, true, spouseOccupation);
+            managedVillage.addVillager(outsiderSpouse);
             
-            // Log why an outsider was needed
-            String reason = analyzeWhyOutsiderNeeded(person);
-            events.add(SimulationEvent.outsiderArrival(spouse, currentYear, reason));
+            // Analyze and document why outsider was needed
+            String outsiderReason = analyzeOutsiderNecessity(seekingSpouse);
+            yearEvents.add(SimulationEvent.outsiderArrival(outsiderSpouse, currentSimulationYear, outsiderReason));
+            totalOutsiderArrivalsCount++;
             
-            return spouse;
-        } else {
-        	return null;
+            return outsiderSpouse;
         }
+        
+        return null; // No marriage this year
     }
     
     /**
-     * Analyzes why an outsider spouse was needed.
+     * Analyzes and explains why an outsider spouse was necessary.
      */
-    private String analyzeWhyOutsiderNeeded(Person person) {
-        List<Person> allEligible = village.getLivingVillagers().stream()
-            .filter(p -> p.getSex() == person.getSex().getOpposite())
+    private String analyzeOutsiderNecessity(Person seekingSpouse) {
+        Person.Sex requiredSex = seekingSpouse.getSex().getOpposite();
+        List<Person> allPotentialPartners = managedVillage.getLivingVillagers().stream()
+            .filter(p -> p.getSex() == requiredSex)
             .filter(p -> p.getAge() >= Person.MINIMUM_MARRIAGE_AGE && p.getAge() <= Person.MAXIMUM_MARRIAGE_AGE)
             .toList();
         
-        if (allEligible.isEmpty()) {
-            return "No eligible " + person.getSex().getOpposite().toString().toLowerCase() + "s in village";
+        if (allPotentialPartners.isEmpty()) {
+            return String.format("No %s of marriageable age in village", 
+                requiredSex.toString().toLowerCase() + "s");
         }
         
-        int married = (int) allEligible.stream().filter(p -> p.getMarriedTo() != null).count();
-        int relatives = (int) allEligible.stream().filter(p -> village.areCloseRelatives(person, p)).count();
-        int hasChildren = (int) allEligible.stream().filter(Person::hasChildren).count();
+        // Categorize reasons for unavailability
+        int alreadyMarriedCount = (int) allPotentialPartners.stream()
+            .filter(p -> p.getMarriedTo() != null).count();
+        int closeRelativesCount = (int) allPotentialPartners.stream()
+            .filter(p -> managedVillage.areCloseRelatives(seekingSpouse, p)).count();
+        int hasChildrenCount = (int) allPotentialPartners.stream()
+            .filter(Person::hasChildren).count();
         
         List<String> reasons = new ArrayList<>();
-        if (married > 0) reasons.add(married + " already married");
-        if (relatives > 0) reasons.add(relatives + " are close relatives");
-        if (hasChildren > 0) reasons.add(hasChildren + " already have children");
+        if (alreadyMarriedCount > 0) {
+            reasons.add(String.format("%d already married", alreadyMarriedCount));
+        }
+        if (closeRelativesCount > 0) {
+            reasons.add(String.format("%d are close relatives (marriage prohibited)", closeRelativesCount));
+        }
+        if (hasChildrenCount > 0) {
+            reasons.add(String.format("%d have children (ineligible)", hasChildrenCount));
+        }
         
-        return String.join(", ", reasons);
+        if (reasons.isEmpty()) {
+            return "All potential partners unavailable";
+        }
+        
+        return String.join("; ", reasons);
     }
     
     /**
-     * Processes potential births for married couples.
-     * Implements the 2-child maximum for all NPCs (including initial couples).
+     * Processes birth events for married couples.
      */
-    private void processBirths(List<SimulationEvent> events) {
-        List<Person> marriedMales = village.getLivingVillagers().stream()
+    private void processBirthEvents(List<SimulationEvent> yearEvents) {
+        List<Person> potentialFathers = managedVillage.getLivingVillagers().stream()
             .filter(p -> p.getSex() == Person.Sex.MALE)
             .filter(p -> p.getMarriedTo() != null)
             .filter(p -> p.canHaveMoreChildren())
             .toList();
         
-        for (Person father : marriedMales) {
+        for (Person father : potentialFathers) {
             Person mother = father.getMarriedTo();
-            if (mother == null || !mother.isAlive()) continue;
+            if (mother == null || !mother.isAlive() || !mother.canHaveMoreChildren()) continue;
             
-            // Special rule: Player lineage can only have 1 child
-            boolean isPlayerLineage = (father == currentPlayer || father.getChildren().contains(currentPlayer));
-            int maxChildren = isPlayerLineage ? 1 : Person.MAXIMUM_CHILDREN;
+            // Special rule: Player lineage limited to 1 child for gameplay balance
+            boolean isPlayerLineage = (father == currentPlayerCharacter || 
+                                     father.getChildren().contains(currentPlayerCharacter));
+            int lineageChildLimit = isPlayerLineage ? 1 : Person.MAXIMUM_CHILDREN;
             
-            if (father.getChildren().size() < maxChildren && 
-                demographicsService.shouldChildBeBorn(father, mother)) {
+            if (father.getChildren().size() < lineageChildLimit && 
+                demographicsCalculator.shouldChildBeBorn(father, mother)) {
                 
-                Person child = createChild(father, mother);
-                events.add(SimulationEvent.birth(child, father, mother, currentYear));
+                Person newChild = generateChild(father, mother);
+                yearEvents.add(SimulationEvent.birth(newChild, father, mother, currentSimulationYear));
+                totalBirthsCount++;
             }
         }
     }
     
     /**
-     * Creates a new child for the given parents.
+     * Generates a new child for the given parents.
      */
-    private Person createChild(Person father, Person mother) {
-        Person.Sex childSex = demographicsService.generateChildSex();
-        String childName = nameGenerator.generateName(childSex);
+    private Person generateChild(Person father, Person mother) {
+        Person.Sex childSex = demographicsCalculator.generateChildSex();
+        String childName = nameGenerationService.generateName(childSex);
         
         Person child = new Person(childName, 0, childSex, false, "None");
         child.setParents(mother, father);
         father.addChild(child);
-        village.addVillager(child);
+        managedVillage.addVillager(child);
         
         return child;
     }
     
-    // Getters
-    public Person getCurrentPlayer() { return currentPlayer; }
-    public int getCurrentYear() { return currentYear; }
-    public Village getVillage() { return village; }
+    // Public accessors for simulation state
+    public Person getCurrentPlayer() { 
+        return currentPlayerCharacter; 
+    }
+    
+    public int getCurrentYear() { 
+        return currentSimulationYear; 
+    }
+    
+    public Village getVillage() { 
+        return managedVillage; 
+    }
+    
     public List<SimulationEvent> getEventsForYear(int year) {
-        if (year >= 0 && year < yearlyEvents.size()) {
-            return new ArrayList<>(yearlyEvents.get(year));
+        if (year >= 0 && year < yearlyEventHistory.size()) {
+            return new ArrayList<>(yearlyEventHistory.get(year));
         }
         return new ArrayList<>();
     }
+    
+    // Statistics accessors
+    public int getTotalBirths() { return totalBirthsCount; }
+    public int getTotalDeaths() { return totalDeathsCount; }
+    public int getTotalMarriages() { return totalMarriagesCount; }
+    public int getTotalOutsiderArrivals() { return totalOutsiderArrivalsCount; }
 }
