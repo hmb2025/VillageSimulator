@@ -27,12 +27,15 @@ public class SimulationEngine {
     private int totalMarriagesCount = 0;
     private int totalOutsiderArrivalsCount = 0;
     
+    // Constants for outsider generation
+    private static final int INITIAL_COUPLES_ADDED_AS_OUTSIDERS = 2; // Per couple
+    
     public SimulationEngine(Village village, SimulationConfig config) {
         this.managedVillage = Objects.requireNonNull(village, "Village cannot be null");
         this.simulationConfiguration = Objects.requireNonNull(config, "Configuration cannot be null");
         this.randomNumberGenerator = new Random();
         this.nameGenerationService = new NameGenerator(randomNumberGenerator);
-        this.demographicsCalculator = new DemographicsService(randomNumberGenerator);
+        this.demographicsCalculator = new DemographicsService(randomNumberGenerator, config);
         this.currentSimulationYear = 0;
         this.yearlyEventHistory = new ArrayList<>();
     }
@@ -52,10 +55,19 @@ public class SimulationEngine {
      * Initializes the starting population with the specified number of married couples.
      * These couples represent the founding families of the settlement.
      * 
-     * @param numberOfCouples Number of married couples to create (0-10)
+     * @param numberOfCouples Number of married couples to create
      */
     public void initializeStartingPopulation(int numberOfCouples) {
         if (numberOfCouples <= 0) return;
+        
+        // Validate against configured limits
+        if (numberOfCouples < simulationConfiguration.getMinimumStartingCouples() || 
+            numberOfCouples > simulationConfiguration.getMaximumStartingCouples()) {
+            throw new IllegalArgumentException(
+                String.format("Number of couples must be between %d and %d",
+                    simulationConfiguration.getMinimumStartingCouples(),
+                    simulationConfiguration.getMaximumStartingCouples()));
+        }
         
         List<SimulationEvent> initializationEvents = new ArrayList<>();
         List<Person> foundingMales = new ArrayList<>();
@@ -66,7 +78,8 @@ public class SimulationEngine {
             // Create male founding member
             String maleName = nameGenerationService.generateName(Person.Sex.MALE);
             String maleOccupation = nameGenerationService.generateOccupation(Person.Sex.MALE);
-            int maleAge = 18 + randomNumberGenerator.nextInt(12); // Ages 18-29
+            int maleAge = simulationConfiguration.getInitialPopulationMinAge() + 
+                         randomNumberGenerator.nextInt(simulationConfiguration.getInitialPopulationAgeRange());
             Person foundingMale = new Person(maleName, maleAge, Person.Sex.MALE, true, maleOccupation);
             foundingMales.add(foundingMale);
             managedVillage.addVillager(foundingMale);
@@ -74,7 +87,8 @@ public class SimulationEngine {
             // Create female founding member
             String femaleName = nameGenerationService.generateName(Person.Sex.FEMALE);
             String femaleOccupation = nameGenerationService.generateOccupation(Person.Sex.FEMALE);
-            int femaleAge = 18 + randomNumberGenerator.nextInt(12); // Ages 18-29
+            int femaleAge = simulationConfiguration.getInitialPopulationMinAge() + 
+                           randomNumberGenerator.nextInt(simulationConfiguration.getInitialPopulationAgeRange());
             Person foundingFemale = new Person(femaleName, femaleAge, Person.Sex.FEMALE, true, femaleOccupation);
             foundingFemales.add(foundingFemale);
             managedVillage.addVillager(foundingFemale);
@@ -85,7 +99,7 @@ public class SimulationEngine {
             initializationEvents.add(SimulationEvent.outsiderArrival(
                 foundingFemale, 0, "Founding settler - initial population"));
                 
-            totalOutsiderArrivalsCount += 2;
+            totalOutsiderArrivalsCount += INITIAL_COUPLES_ADDED_AS_OUTSIDERS;
         }
         
         // Randomly pair founding members for marriage
@@ -252,7 +266,8 @@ public class SimulationEngine {
         if (!eligiblePartners.isEmpty()) {
             // Select partner from existing villagers
             return eligiblePartners.get(randomNumberGenerator.nextInt(eligiblePartners.size()));
-        } else if (seekingSpouse.getAge() >= 25 && Math.random() < 0.3) {
+        } else if (seekingSpouse.getAge() >= simulationConfiguration.getOutsiderMarriageMinAge() && 
+                   Math.random() < simulationConfiguration.getOutsiderMarriageThreshold()) {
             // Generate outsider spouse if person is older and no local options
             Person.Sex requiredSex = seekingSpouse.getSex().getOpposite();
             String spouseName = nameGenerationService.generateName(requiredSex);
@@ -280,7 +295,8 @@ public class SimulationEngine {
         Person.Sex requiredSex = seekingSpouse.getSex().getOpposite();
         List<Person> allPotentialPartners = managedVillage.getLivingVillagers().stream()
             .filter(p -> p.getSex() == requiredSex)
-            .filter(p -> p.getAge() >= Person.MINIMUM_MARRIAGE_AGE && p.getAge() <= Person.MAXIMUM_MARRIAGE_AGE)
+            .filter(p -> p.getAge() >= simulationConfiguration.getMinimumMarriageAge() && 
+                        p.getAge() <= simulationConfiguration.getMaximumMarriageAge())
             .toList();
         
         if (allPotentialPartners.isEmpty()) {
@@ -328,10 +344,12 @@ public class SimulationEngine {
             Person mother = father.getMarriedTo();
             if (mother == null || !mother.isAlive() || !mother.canHaveMoreChildren()) continue;
             
-            // Special rule: Player lineage limited to 1 child for gameplay balance
+            // Special rule: Player lineage may have different child limit for gameplay balance
             boolean isPlayerLineage = (father == currentPlayerCharacter || 
                                      father.getChildren().contains(currentPlayerCharacter));
-            int lineageChildLimit = isPlayerLineage ? 1 : Person.MAXIMUM_CHILDREN;
+            int lineageChildLimit = isPlayerLineage ? 
+                simulationConfiguration.getPlayerLineageChildLimit() : 
+                simulationConfiguration.getMaximumChildrenPerFamily();
             
             if (father.getChildren().size() < lineageChildLimit && 
                 demographicsCalculator.shouldChildBeBorn(father, mother)) {
@@ -369,6 +387,10 @@ public class SimulationEngine {
     
     public Village getVillage() { 
         return managedVillage; 
+    }
+    
+    public SimulationConfig getConfiguration() {
+        return simulationConfiguration;
     }
     
     public List<SimulationEvent> getEventsForYear(int year) {

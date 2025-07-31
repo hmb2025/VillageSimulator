@@ -9,25 +9,21 @@ import java.io.IOException;
  * This class coordinates the initialization and execution of the simulation.
  */
 public class Main {
-    // Configuration Constants - Clear naming for initial player settings
-    private static final int INITIAL_PLAYER_AGE_YEARS = 18;
-    private static final String INITIAL_PLAYER_OCCUPATION = "Farmer";
-    private static final String DEFAULT_VILLAGE_NAME = "Haven";
     
     public static void main(String[] args) {
         // Initialize components with clear variable names
         Scanner userInputScanner = new Scanner(System.in);
         SimulationConfig simulationConfig = SimulationConfig.createDefault();
-        Village simulationVillage = new Village(DEFAULT_VILLAGE_NAME);
+        Village simulationVillage = new Village(simulationConfig.getDefaultVillageName());
         SimulationEngine simulationEngine = new SimulationEngine(simulationVillage, simulationConfig);
         ConsoleUI userInterface = null;
         
         try {
-            userInterface = new ConsoleUI(simulationEngine, userInputScanner);
+            userInterface = new ConsoleUI(simulationEngine, userInputScanner, simulationConfig);
             
             // Initialize simulation: Get player details and create initial population
             String playerCharacterName = userInterface.requestPlayerName();
-            Person playerCharacter = createInitialPlayerCharacter(playerCharacterName);
+            Person playerCharacter = createInitialPlayerCharacter(playerCharacterName, simulationConfig);
             simulationEngine.setInitialPlayer(playerCharacter);
             
             // Initialize village population based on user preference
@@ -52,15 +48,16 @@ public class Main {
      * Creates the initial player character with predefined starting attributes.
      * 
      * @param characterName The name chosen by the player
+     * @param config The simulation configuration
      * @return A new Person object representing the player character
      */
-    private static Person createInitialPlayerCharacter(String characterName) {
+    private static Person createInitialPlayerCharacter(String characterName, SimulationConfig config) {
         return new Person(
             characterName,
-            INITIAL_PLAYER_AGE_YEARS,
+            config.getInitialPlayerAge(),
             Person.Sex.MALE,
             false, // Native to village (not outsider)
-            INITIAL_PLAYER_OCCUPATION
+            config.getDefaultPlayerOccupation()
         );
     }
     

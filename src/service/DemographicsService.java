@@ -1,40 +1,33 @@
 package service;
 
 import model.Person;
+import simulation.SimulationConfig;
 import java.util.Random;
 
 /**
  * Service for handling demographic calculations including mortality rates,
  * birth probabilities, and marriage dynamics.
- * All constants and calculations are clearly documented for transparency.
+ * All calculations use centralized configuration for easy tuning.
  */
 public class DemographicsService {
     private final Random randomGenerator;
+    private final SimulationConfig config;
     
-    // Mortality Configuration - Clear age boundaries
-    private static final int MORTALITY_ONSET_AGE = 60;  // Age when mortality risk begins
-    private static final int MORTALITY_CERTAINTY_AGE = 70;  // Age when death becomes certain
-    private static final int MORTALITY_RISK_INCREASE_PER_YEAR = 10;  // Percentage increase per year
+    // Percentage calculation constants
+    private static final int PERCENTAGE_MULTIPLIER = 100;
     
-    // Marriage Configuration - Eligible age range
-    private static final int MINIMUM_SPOUSE_AGE = 18;
-    private static final int MAXIMUM_SPOUSE_AGE = 29;
-    
-    // Birth Configuration
-    private static final double BASE_BIRTH_PROBABILITY = 1.0;  // 100% chance if eligible
-    private static final double MALE_BIRTH_PROBABILITY = 0.5;  // 50% chance for male child
-    
-    public DemographicsService() {
-        this(new Random());
+    public DemographicsService(SimulationConfig config) {
+        this(new Random(), config);
     }
     
-    public DemographicsService(Random randomGenerator) {
+    public DemographicsService(Random randomGenerator, SimulationConfig config) {
         this.randomGenerator = randomGenerator;
+        this.config = config;
     }
     
     /**
      * Calculates whether a person should die based on their age.
-     * Mortality model: No death before 60, linear increase 60-70, certain death after 70.
+     * Mortality model: No death before onset age, linear increase to certainty age.
      * 
      * @param person The person to evaluate
      * @return true if the person should die this year
@@ -47,22 +40,22 @@ public class DemographicsService {
         int currentAge = person.getAge();
         
         // No natural death before mortality onset
-        if (currentAge < MORTALITY_ONSET_AGE) {
+        if (currentAge < config.getMortalityOnsetAge()) {
             return false;
         }
         
         // Certain death after maximum age
-        if (currentAge > MORTALITY_CERTAINTY_AGE) {
+        if (currentAge > config.getMortalityCertaintyAge()) {
             return true;
         }
         
         // Calculate mortality probability (linear increase)
-        // Age 60: 0%, Age 61: 10%, Age 62: 20%, ... Age 70: 100%
-        int yearsAfterOnset = currentAge - MORTALITY_ONSET_AGE;
-        int mortalityPercentage = yearsAfterOnset * MORTALITY_RISK_INCREASE_PER_YEAR;
+        // Example: Age 60: 0%, Age 61: 10%, Age 62: 20%, ... Age 70: 100%
+        int yearsAfterOnset = currentAge - config.getMortalityOnsetAge();
+        int mortalityPercentage = yearsAfterOnset * config.getMortalityRiskIncreasePerYear();
         
         // Generate random number 0-99 and check against mortality percentage
-        return randomGenerator.nextInt(100) < mortalityPercentage;
+        return randomGenerator.nextInt(PERCENTAGE_MULTIPLIER) < mortalityPercentage;
     }
     
     /**
@@ -71,23 +64,22 @@ public class DemographicsService {
      * @return Age between minimum and maximum spouse age (inclusive)
      */
     public int generateSpouseAge() {
-        int ageRange = MAXIMUM_SPOUSE_AGE - MINIMUM_SPOUSE_AGE + 1;
-        return MINIMUM_SPOUSE_AGE + randomGenerator.nextInt(ageRange);
+        int ageRange = config.getMaximumMarriageAge() - config.getMinimumMarriageAge() + 1;
+        return config.getMinimumMarriageAge() + randomGenerator.nextInt(ageRange);
     }
     
     /**
      * Determines if a marriage should occur this year for an eligible person.
      * 
-     * @param annualMarriageProbability The configured probability of marriage
      * @return true if marriage should occur
      */
-    public boolean shouldMarriageOccur(double annualMarriageProbability) {
-        return randomGenerator.nextDouble() < annualMarriageProbability;
+    public boolean shouldMarriageOccur() {
+        return randomGenerator.nextDouble() < config.getAnnualMarriageProbability();
     }
     
     /**
      * Determines if a child should be born to a married couple.
-     * Currently implements a deterministic model (always have children if possible).
+     * Uses configuration to determine birth probability.
      * 
      * @param father The father in the couple
      * @param mother The mother in the couple
@@ -99,9 +91,8 @@ public class DemographicsService {
             return false;
         }
         
-        // Current implementation: Always have children if eligible
-        // This ensures population growth in the simulation
-        return BASE_BIRTH_PROBABILITY > randomGenerator.nextDouble();
+        // Use configured birth probability
+        return config.getBaseBirthProbability() > randomGenerator.nextDouble();
         
         // Alternative implementations could consider:
         // - Parent ages (reduced fertility with age)
@@ -111,12 +102,12 @@ public class DemographicsService {
     }
     
     /**
-     * Determines the sex of a new child with equal probability.
+     * Determines the sex of a new child using configured probability.
      * 
      * @return Sex of the new child
      */
     public Person.Sex generateChildSex() {
-        return randomGenerator.nextDouble() < MALE_BIRTH_PROBABILITY 
+        return randomGenerator.nextDouble() < config.getMaleChildProbability() 
             ? Person.Sex.MALE 
             : Person.Sex.FEMALE;
     }
@@ -127,9 +118,8 @@ public class DemographicsService {
      * @return Average life expectancy based on mortality model
      */
     public double calculateLifeExpectancy() {
-        // With current model: guaranteed survival to 60, average death at 65
-        // This is a simplified calculation
-        return (MORTALITY_ONSET_AGE + MORTALITY_CERTAINTY_AGE) / 2.0;
+        // With current model: guaranteed survival to onset age, average death between onset and certainty
+        return (config.getMortalityOnsetAge() + config.getMortalityCertaintyAge()) / 2.0;
     }
     
     /**
@@ -138,15 +128,7 @@ public class DemographicsService {
      * @return Description of mortality rules
      */
     public String getMortalityModelDescription() {
-        return String.format(
-            "Mortality Model: No death before age %d, " +
-            "linear increase from %d-%d (10%% per year), " +
-            "certain death after age %d",
-            MORTALITY_ONSET_AGE,
-            MORTALITY_ONSET_AGE,
-            MORTALITY_CERTAINTY_AGE,
-            MORTALITY_CERTAINTY_AGE
-        );
+        return config.getMortalityModelDescription();
     }
     
     /**
@@ -155,13 +137,6 @@ public class DemographicsService {
      * @return Description of marriage rules
      */
     public String getMarriageRulesDescription() {
-        return String.format(
-            "Marriage Rules: Eligible age %d-%d, " +
-            "must be unmarried, " +
-            "cannot have existing children, " +
-            "cannot marry close relatives",
-            MINIMUM_SPOUSE_AGE,
-            MAXIMUM_SPOUSE_AGE
-        );
+        return config.getMarriageRulesDescription();
     }
 }

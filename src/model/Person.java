@@ -1,5 +1,6 @@
 package model;
 
+import simulation.SimulationConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -7,6 +8,7 @@ import java.util.Objects;
 /**
  * Represents a person in the village simulation.
  * Encapsulates all personal attributes, relationships, and life events.
+ * Note: Marriage and fertility constraints are now managed via SimulationConfig.
  */
 public class Person {
     /**
@@ -49,14 +51,16 @@ public class Person {
     private Person biologicalMother;
     private Person biologicalFather;
     
-    // Life Event Configuration Constants
-    public static final int MINIMUM_MARRIAGE_AGE = 18;
-    public static final int MAXIMUM_MARRIAGE_AGE = 29;
-    public static final int MAXIMUM_CHILDREN = 2;
-    public static final int PLAYER_LINEAGE_CHILD_LIMIT = 1;
+    // Configuration reference (optional - can be null for backward compatibility)
+    private SimulationConfig config;
+    
+    // Default constants for when config is not provided
+    private static final int DEFAULT_MINIMUM_MARRIAGE_AGE = SimulationConfig.DEFAULT_MINIMUM_MARRIAGE_AGE;
+    private static final int DEFAULT_MAXIMUM_MARRIAGE_AGE = SimulationConfig.DEFAULT_MAXIMUM_MARRIAGE_AGE;
+    private static final int DEFAULT_MAXIMUM_CHILDREN = SimulationConfig.DEFAULT_MAX_CHILDREN_PER_FAMILY;
 
     /**
-     * Creates a new person with specified attributes.
+     * Creates a new person with specified attributes using default configuration.
      * 
      * @param fullName The person's full name
      * @param ageInYears Initial age in years
@@ -66,6 +70,21 @@ public class Person {
      */
     public Person(String fullName, int ageInYears, Sex biologicalSex, 
                   boolean outsiderOrigin, String primaryOccupation) {
+        this(fullName, ageInYears, biologicalSex, outsiderOrigin, primaryOccupation, null);
+    }
+    
+    /**
+     * Creates a new person with specified attributes and configuration.
+     * 
+     * @param fullName The person's full name
+     * @param ageInYears Initial age in years
+     * @param biologicalSex Biological sex (Male/Female)
+     * @param outsiderOrigin True if born outside the village
+     * @param primaryOccupation Person's occupation or trade
+     * @param config Simulation configuration (optional)
+     */
+    public Person(String fullName, int ageInYears, Sex biologicalSex, 
+                  boolean outsiderOrigin, String primaryOccupation, SimulationConfig config) {
         validateName(fullName);
         validateAge(ageInYears);
         Objects.requireNonNull(biologicalSex, "Biological sex cannot be null");
@@ -77,6 +96,7 @@ public class Person {
         this.outsiderOrigin = outsiderOrigin;
         this.primaryOccupation = primaryOccupation != null ? primaryOccupation : "None";
         this.offspring = new ArrayList<>();
+        this.config = config;
     }
 
     // Validation Methods
@@ -84,8 +104,9 @@ public class Person {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Name cannot be null or empty");
         }
-        if (name.length() > 50) {
-            throw new IllegalArgumentException("Name cannot exceed 50 characters");
+        if (name.length() > SimulationConfig.MAXIMUM_NAME_LENGTH) {
+            throw new IllegalArgumentException(
+                "Name cannot exceed " + SimulationConfig.MAXIMUM_NAME_LENGTH + " characters");
         }
     }
     
@@ -93,9 +114,42 @@ public class Person {
         if (age < 0) {
             throw new IllegalArgumentException("Age cannot be negative");
         }
-        if (age > 150) {
-            throw new IllegalArgumentException("Age cannot exceed 150 years");
+        if (age > SimulationConfig.MAXIMUM_PERSON_AGE) {
+            throw new IllegalArgumentException(
+                "Age cannot exceed " + SimulationConfig.MAXIMUM_PERSON_AGE + " years");
         }
+    }
+
+    // Configuration Methods
+    
+    /**
+     * Sets the simulation configuration for this person.
+     * 
+     * @param config The simulation configuration
+     */
+    public void setConfiguration(SimulationConfig config) {
+        this.config = config;
+    }
+    
+    /**
+     * Gets the minimum marriage age from configuration or default.
+     */
+    private int getMinimumMarriageAge() {
+        return config != null ? config.getMinimumMarriageAge() : DEFAULT_MINIMUM_MARRIAGE_AGE;
+    }
+    
+    /**
+     * Gets the maximum marriage age from configuration or default.
+     */
+    private int getMaximumMarriageAge() {
+        return config != null ? config.getMaximumMarriageAge() : DEFAULT_MAXIMUM_MARRIAGE_AGE;
+    }
+    
+    /**
+     * Gets the maximum children limit from configuration or default.
+     */
+    private int getMaximumChildren() {
+        return config != null ? config.getMaximumChildrenPerFamily() : DEFAULT_MAXIMUM_CHILDREN;
     }
 
     // Marriage and Relationship Methods
@@ -147,10 +201,11 @@ public class Person {
     public void addChild(Person child) {
         Objects.requireNonNull(child, "Child cannot be null");
         
-        if (this.offspring.size() >= MAXIMUM_CHILDREN) {
+        int maxChildren = getMaximumChildren();
+        if (this.offspring.size() >= maxChildren) {
             throw new IllegalStateException(
                 String.format("Cannot add child: maximum of %d children per parent reached", 
-                    MAXIMUM_CHILDREN));
+                    maxChildren));
         }
         
         this.offspring.add(child);
@@ -205,8 +260,8 @@ public class Person {
     public boolean isEligibleForMarriage() {
         return livingStatus && 
                marriagePartner == null && 
-               ageInYears >= MINIMUM_MARRIAGE_AGE && 
-               ageInYears <= MAXIMUM_MARRIAGE_AGE && 
+               ageInYears >= getMinimumMarriageAge() && 
+               ageInYears <= getMaximumMarriageAge() && 
                offspring.isEmpty();
     }
 
@@ -219,7 +274,7 @@ public class Person {
         return livingStatus && 
                marriagePartner != null && 
                marriagePartner.livingStatus && 
-               offspring.size() < MAXIMUM_CHILDREN;
+               offspring.size() < getMaximumChildren();
     }
 
     // Accessor Methods (Getters)
